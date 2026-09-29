@@ -1,0 +1,23 @@
+{
+  "name": "Elim Café",
+  "short_name": "Elim Café",
+  "description": "Mobile ordering for Elim Café.",
+  "start_url": "index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fff8ed",
+  "theme_color": "#7a4a28",
+  "icons": [
+    {
+      "src": "icons/elim-icon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "icons/elim-maskable.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

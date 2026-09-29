@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#7a4a28">
+    <meta name="description" content="Elim Café staff order dashboard.">
+    <title>Elim Café Staff</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="css/styles.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script defer src="js/supabase-config.js"></script>
+    <script defer src="js/staff.js"></script>
+  </head>
+  <body class="staff-page">
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">Tablet dashboard</p>
+        <h1>Elim Café Staff</h1>
+      </div>
+      <a class="staff-link" href="index.html">Menu</a>
+    </header>
+
+    <main class="staff-layout">
+      <section class="panel dashboard-panel" aria-labelledby="orders-heading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Live orders</p>
+            <h2 id="orders-heading">Incoming Orders</h2>
+          </div>
+          <button id="refresh-orders" class="secondary-button small-button" type="button">Refresh</button>
+        </div>
+        <div id="staff-message" class="form-message" role="status"></div>
+        <div id="orders-list" class="orders-list empty-state">
+          Waiting for orders...
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

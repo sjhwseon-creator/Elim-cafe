@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Elim Café icon">
+  <rect width="512" height="512" fill="#7a4a28"/>
+  <circle cx="256" cy="256" r="172" fill="#fff8ed"/>
+  <path d="M162 246h174v48c0 52-40 92-92 92s-82-40-82-92v-48Z" fill="#7a4a28"/>
+  <path d="M336 268h26c27 0 46 18 46 43s-19 43-46 43h-34v-32h34c8 0 14-5 14-11s-6-11-14-11h-26v-32Z" fill="#7a4a28"/>
+  <path d="M200 124c-18 27 18 37 0 64M256 112c-21 31 21 41 0 76M312 124c-18 27 18 37 0 64" fill="none" stroke="#7a4a28" stroke-width="22" stroke-linecap="round"/>
+  <path d="M136 390h220" stroke="#7a4a28" stroke-width="26" stroke-linecap="round"/>
+</svg>

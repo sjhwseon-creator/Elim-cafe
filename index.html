@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#7a4a28">
+    <meta name="description" content="Elim Café mobile ordering app.">
+    <title>Elim Café</title>
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icons/elim-icon.svg">
+    <link rel="stylesheet" href="css/styles.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script defer src="js/supabase-config.js"></script>
+    <script defer src="js/menu.js?v=20260925"></script>
+    <script defer src="js/payment-config.js"></script>
+    <script defer src="js/customer.js"></script>
+  </head>
+  <body class="customer-page">
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">Welcome</p>
+        <h1>Elim Café</h1>
+      </div>
+    </header>
+
+    <main class="layout">
+      <section class="panel menu-panel" aria-labelledby="menu-heading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Today&apos;s menu</p>
+            <h2 id="menu-heading">Choose your drinks</h2>
+          </div>
+        </div>
+        <div id="menu-groups" class="menu-groups"></div>
+      </section>
+
+      <aside class="panel cart-panel" aria-labelledby="cart-heading">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">Your order</p>
+            <h2 id="cart-heading">Cart</h2>
+          </div>
+          <strong id="cart-count" class="pill">0 items</strong>
+        </div>
+
+        <div id="cart-items" class="cart-items empty-state">
+          Your selected drinks will appear here.
+        </div>
+
+        <div class="total-row">
+          <span>Total</span>
+          <strong id="cart-total">€0.00</strong>
+        </div>
+
+        <label class="field">
+          <span>Your name</span>
+          <input id="customer-name" type="text" autocomplete="name" placeholder="Enter your name">
+        </label>
+
+        <fieldset class="payment-section">
+          <legend>Payment method</legend>
+          <div class="payment-options">
+            <label class="payment-option">
+              <input type="radio" name="payment-method" value="paypal">
+              <span>PayPal</span>
+            </label>
+            <label class="payment-option">
+              <input type="radio" name="payment-method" value="sepa">
+              <span>SEPA bank transfer</span>
+            </label>
+            <label class="payment-option">
+              <input type="radio" name="payment-method" value="cash">
+              <span>Cash</span>
+            </label>
+          </div>
+          <div id="payment-instructions" class="payment-instructions" hidden></div>
+        </fieldset>
+
+        <div id="order-summary" class="summary-box" hidden></div>
+
+        <button id="review-order" class="primary-button" type="button" disabled>Review Order</button>
+        <button id="place-order" class="primary-button confirm-button" type="button" hidden>Place Order</button>
+        <button id="clear-cart" class="secondary-button" type="button" disabled>Clear Cart</button>
+        <p id="form-message" class="form-message" role="status"></p>
+      </aside>
+    </main>
+
+    <section id="confirmation-screen" class="confirmation-screen" hidden aria-live="polite">
+      <div class="confirmation-card">
+        <p class="eyebrow">Thank you</p>
+        <h2>Order received!</h2>
+        <p id="confirmation-number" class="order-number"></p>
+        <p id="confirmation-total" class="confirmation-total"></p>
+        <p>Please wait for your order.</p>
+        <button id="new-order" class="secondary-button" type="button">Start another order</button>
+      </div>
+    </section>
+  </body>
+</html>
