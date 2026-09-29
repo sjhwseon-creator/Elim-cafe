@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Elim Café
 
 Version 1 is a simple static PWA for church café ordering. Customers order from `index.html`, and staff see incoming orders in real time on `staff.html`.
