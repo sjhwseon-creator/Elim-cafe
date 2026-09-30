@@ -447,6 +447,26 @@ button:disabled {
   background: #f6efe4;
 }
 
+.staff-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.staff-login-panel {
+  width: min(480px, 100%);
+  margin: 24px auto;
+}
+
+.staff-login-panel h2 {
+  margin: 6px 0 10px;
+}
+
+.staff-login-panel > p:not(.eyebrow) {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
 .dashboard-panel {
   min-height: 68vh;
 }

@@ -1,11 +1,11 @@
-const CACHE_NAME = "elim-cafe-menu-update-v2";
+const CACHE_NAME = "elim-cafe-security-v4";
 const APP_SHELL = [
   "./",
   "index.html",
   "staff.html",
   "css/styles.css",
   "js/supabase-config.js",
-  "js/menu.js?v=20260925",
+  "js/menu.js?v=20260929",
   "js/customer.js",
   "js/staff.js",
   "manifest.json",
