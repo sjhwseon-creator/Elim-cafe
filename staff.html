@@ -18,11 +18,28 @@
         <p class="eyebrow">Tablet dashboard</p>
         <h1>Elim Café Staff</h1>
       </div>
-      <a class="staff-link" href="index.html">Menu</a>
+      <div class="staff-header-actions">
+        <a class="staff-link" href="index.html">Menu</a>
+        <button id="staff-logout" class="secondary-button small-button" type="button" hidden>Log out</button>
+      </div>
     </header>
 
     <main class="staff-layout">
-      <section class="panel dashboard-panel" aria-labelledby="orders-heading">
+      <section id="staff-login-panel" class="panel staff-login-panel" aria-labelledby="staff-login-heading">
+        <p class="eyebrow">Staff access</p>
+        <h2 id="staff-login-heading">Sign in to the dashboard</h2>
+        <p>Enter the shared café staff email. Supabase will send a secure sign-in link.</p>
+        <form id="staff-login-form">
+          <label class="field">
+            <span>Staff email</span>
+            <input id="staff-email" type="email" autocomplete="email" inputmode="email" required placeholder="Staff email address">
+          </label>
+          <button id="send-magic-link" class="primary-button" type="submit">Send magic link</button>
+        </form>
+        <div id="login-message" class="form-message" role="status"></div>
+      </section>
+
+      <section id="staff-dashboard" class="panel dashboard-panel" aria-labelledby="orders-heading" hidden>
         <div class="section-heading">
           <div>
             <p class="eyebrow">Live orders</p>

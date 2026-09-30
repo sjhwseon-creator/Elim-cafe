@@ -1,5 +1,29 @@
 const cart = new Map();
 
+async function forwardStaffAuthCallback() {
+  if (!window.elimSupabase) return;
+
+  const callbackUrl = new URL(window.location.href);
+  const hashParams = new URLSearchParams(callbackUrl.hash.slice(1));
+  const hasAuthCallback = callbackUrl.searchParams.has("code")
+    || hashParams.has("access_token")
+    || hashParams.get("type") === "magiclink";
+
+  if (!hasAuthCallback) return;
+
+  const { data, error } = await window.elimSupabase.auth.getSession();
+  if (error) {
+    console.error("Could not complete staff Magic Link redirect:", error);
+    return;
+  }
+
+  if (data.session) {
+    window.location.replace(new URL("staff.html", window.location.href).href);
+  }
+}
+
+forwardStaffAuthCallback();
+
 const menuGroups = document.querySelector("#menu-groups");
 const cartItems = document.querySelector("#cart-items");
 const cartCount = document.querySelector("#cart-count");
@@ -57,6 +81,10 @@ function getSelectedPaymentMethod() {
   return document.querySelector('input[name="payment-method"]:checked')?.value || "";
 }
 
+function hasPublicPaymentValue(value) {
+  return typeof value === "string" && value.trim() !== "";
+}
+
 function renderPaymentInstructions() {
   const method = getSelectedPaymentMethod();
   const config = window.ELIM_PAYMENT_CONFIG;
@@ -68,29 +96,45 @@ function renderPaymentInstructions() {
   }
 
   if (method === "paypal") {
+    const directPayment = hasPublicPaymentValue(config.paypalAccount)
+      ? `
+        <p>Alternatively, you can send the payment directly to the following PayPal account.</p>
+        <dl class="payment-details">
+          <div><dt>PayPal account</dt><dd>${escapeHtml(config.paypalAccount)}</dd></div>
+        </dl>
+      `
+      : "";
+
     paymentInstructions.innerHTML = `
       <p>Please scan the PayPal QR code displayed at the café counter and send your payment.</p>
-      <p>Alternatively, you can send the payment directly to the following PayPal account.</p>
-      <dl class="payment-details">
-        <div><dt>PayPal account</dt><dd>${escapeHtml(config.paypalAccount)}</dd></div>
-      </dl>
+      ${directPayment}
     `;
   }
 
   if (method === "sepa") {
+    const hasBankDetails = hasPublicPaymentValue(config.sepaAccountHolder)
+      && hasPublicPaymentValue(config.sepaIban);
+    const directPayment = hasBankDetails
+      ? `
+        <p>Alternatively, you can transfer the payment directly using the following bank details.</p>
+        <dl class="payment-details">
+          <div><dt>Bank name</dt><dd>${escapeHtml(config.bankName)}</dd></div>
+          <div>
+            <dt>Account holder</dt>
+            <dd><span>${escapeHtml(config.sepaAccountHolder)}</span><button class="copy-button" type="button" data-copy="account-holder">Copy</button></dd>
+          </div>
+          <div>
+            <dt>IBAN</dt>
+            <dd><span>${escapeHtml(config.sepaIban)}</span><button class="copy-button" type="button" data-copy="iban">Copy</button></dd>
+          </div>
+        </dl>
+      `
+      : "";
+
     paymentInstructions.innerHTML = `
       <p>Please scan the bank transfer QR code displayed at the café counter.</p>
-      <p>Alternatively, you can transfer the payment directly using the following bank details.</p>
+      ${directPayment}
       <dl class="payment-details">
-        <div><dt>Bank name</dt><dd>${escapeHtml(config.bankName)}</dd></div>
-        <div>
-          <dt>Account holder</dt>
-          <dd><span>${escapeHtml(config.sepaAccountHolder)}</span><button class="copy-button" type="button" data-copy="account-holder">Copy</button></dd>
-        </div>
-        <div>
-          <dt>IBAN</dt>
-          <dd><span>${escapeHtml(config.sepaIban)}</span><button class="copy-button" type="button" data-copy="iban">Copy</button></dd>
-        </div>
         <div><dt>Total amount</dt><dd>${formatEuro(getTotal())}</dd></div>
       </dl>
     `;
@@ -225,55 +269,11 @@ function renderSummary() {
   placeOrder.hidden = false;
 }
 
-async function getNextOrderNumber() {
-  const { data, error } = await window.elimSupabase
-    .from("orders")
-    .select("order_number")
-    .order("order_number", { ascending: false })
-    .limit(1);
-
-  if (error) {
-    console.error("Supabase error while getting next order number:", error);
-    throw new Error(`Could not create order number: ${error.message}`);
-  }
-
-  const lastOrderNumber = Number(data?.[0]?.order_number || 99);
-  return lastOrderNumber + 1;
-}
-
-async function insertOrderWithNumber(orderDetails) {
-  let orderNumber = await getNextOrderNumber();
-
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
-    const { data: order, error } = await window.elimSupabase
-      .from("orders")
-      .insert({
-        ...orderDetails,
-        order_number: orderNumber
-      })
-      .select("id, order_number, total_price, payment_method")
-      .single();
-
-    if (!error) return order;
-
-    console.error(`Supabase error while creating order, attempt ${attempt}:`, error);
-
-    if (error.code !== "23505" || attempt === 3) {
-      throw new Error(error.message);
-    }
-
-    orderNumber += 1;
-  }
-
-  throw new Error("Could not create a unique order number.");
-}
-
 async function submitOrder() {
   if (placeOrder.disabled) return;
 
   const rows = getCartRows();
   const name = customerName.value.trim();
-  const total = getTotal(rows);
   const paymentMethod = getSelectedPaymentMethod();
 
   if (!rows.length) {
@@ -294,44 +294,26 @@ async function submitOrder() {
   }
 
   if (!window.elimSupabaseConfigured || !window.elimSupabase) {
-    setMessage("Add your Supabase URL and anon key in js/supabase-config.js before placing orders.", true);
+    setMessage("Add your Supabase URL and publishable key in js/supabase-config.js before placing orders.", true);
     return;
   }
 
   placeOrder.disabled = true;
   setMessage("Sending your order...");
 
-  let order;
+  const { data: order, error } = await window.elimSupabase.rpc("create_order", {
+    p_customer_name: name,
+    p_payment_method: paymentMethod,
+    p_items: rows.map((item) => ({
+      item_id: item.id,
+      quantity: item.quantity
+    }))
+  });
 
-  try {
-    order = await insertOrderWithNumber({
-      customer_name: name,
-      total_price: total,
-      status: "new",
-      payment_method: paymentMethod
-    });
-  } catch (error) {
-    console.error("Order submission failed:", error);
+  if (error || !order?.order_number) {
+    console.error("Supabase RPC error while creating order:", error || order);
     placeOrder.disabled = false;
-    setMessage(`Could not place order: ${error.message}`, true);
-    return;
-  }
-
-  const orderItems = rows.map((item) => ({
-    order_id: order.id,
-    item_name: item.name,
-    quantity: item.quantity,
-    unit_price: item.price
-  }));
-
-  const { error: itemsError } = await window.elimSupabase
-    .from("order_items")
-    .insert(orderItems);
-
-  if (itemsError) {
-    console.error("Supabase error while creating order items:", itemsError);
-    placeOrder.disabled = false;
-    setMessage(`Order was created, but the items could not be saved: ${itemsError.message}`, true);
+    setMessage(`Could not place order: ${error?.message || "Invalid server response."}`, true);
     return;
   }
 
@@ -414,7 +396,7 @@ newOrder.addEventListener("click", () => {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20260925");
+    navigator.serviceWorker.register("service-worker.js?v=20260930");
   });
 }
 
