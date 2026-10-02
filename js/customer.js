@@ -16,7 +16,7 @@ async function forwardStaffAuthCallback() {
     }
   });
 
-  const { data, error } = await window.elimSupabase.auth.getSession();
+  const { data, error } = await window.elimCompleteAuthCallback();
   if (error) {
     console.error("Could not complete staff Magic Link redirect:", error);
     authListener.subscription.unsubscribe();

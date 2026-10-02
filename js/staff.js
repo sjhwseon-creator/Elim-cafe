@@ -257,10 +257,10 @@ async function initializeStaffApp() {
     return;
   }
 
-  const { data, error } = await window.elimSupabase.auth.getSession();
+  const { data, error } = await window.elimCompleteAuthCallback();
   if (error) {
-    console.error("Could not restore staff session:", error);
-    showLogin("Could not restore the staff session. Please sign in again.", true);
+    console.error("Could not complete or restore staff session:", error);
+    showLogin(`Could not sign in: ${error.message}`, true);
   } else {
     await handleSession(data.session);
   }

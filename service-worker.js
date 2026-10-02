@@ -1,4 +1,4 @@
-const CACHE_NAME = "elim-cafe-printer-test-v3";
+const CACHE_NAME = "elim-cafe-printer-test-v4";
 const APP_SHELL = [
   "./",
   "index.html",
