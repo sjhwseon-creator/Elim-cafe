@@ -227,7 +227,9 @@ async function sendStaffMagicLink(event) {
   sendMagicLink.disabled = true;
   setMessage(loginMessage, "Sending sign-in link...");
 
-  const redirectUrl = new URL("staff.html", window.location.href).href;
+  const redirectUrl = window.ElimNativePrinter
+    ? "elimcafe://auth"
+    : new URL("staff.html", window.location.href).href;
   console.info("Staff Magic Link redirect URL:", redirectUrl);
   const { error } = await window.elimSupabase.auth.signInWithOtp({
     email,

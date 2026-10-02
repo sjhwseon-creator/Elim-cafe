@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.ElimCafePrinter" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#7A4A28</item>
+        <item name="android:navigationBarColor">#FFFFFF</item>
+        <item name="android:statusBarColor">#7A4A28</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+</resources>

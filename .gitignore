@@ -26,3 +26,10 @@ temp/
 
 # Test and coverage output
 coverage/
+
+# Android build output and local SDK path
+android-printer-bridge/.gradle/
+android-printer-bridge/local.properties
+android-printer-bridge/**/build/
+android-printer-bridge/*.iml
+android-printer-bridge/**/.cxx/

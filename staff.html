@@ -10,6 +10,9 @@
     <link rel="stylesheet" href="css/styles.css">
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script defer src="js/supabase-config.js"></script>
+    <script defer src="js/receipt.js"></script>
+    <script defer src="js/printer-bridge.js"></script>
+    <script defer src="js/printer-test.js"></script>
     <script defer src="js/staff.js"></script>
   </head>
   <body class="staff-page">
@@ -40,6 +43,25 @@
       </section>
 
       <section id="staff-dashboard" class="panel dashboard-panel" aria-labelledby="orders-heading" hidden>
+        <section class="printer-panel" aria-labelledby="printer-heading">
+          <div class="printer-status-row">
+            <div>
+              <p class="eyebrow">Receipt printer</p>
+              <h2 id="printer-heading">58mm POS-58</h2>
+            </div>
+            <div id="printer-status" class="printer-status unavailable" role="status">
+              <span class="printer-status-dot" aria-hidden="true"></span>
+              <span id="printer-status-text">Bridge unavailable</span>
+            </div>
+          </div>
+          <div class="printer-actions">
+            <button id="printer-connect" class="secondary-button small-button" type="button">Connect</button>
+            <button id="printer-disconnect" class="secondary-button small-button" type="button" disabled>Disconnect</button>
+            <button id="printer-test-print" class="primary-button small-button" type="button" disabled>Test print</button>
+          </div>
+          <p id="printer-message" class="form-message" role="status"></p>
+        </section>
+
         <div class="section-heading">
           <div>
             <p class="eyebrow">Live orders</p>

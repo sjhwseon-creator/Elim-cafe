@@ -1,24 +1,32 @@
 const cart = new Map();
 
 async function forwardStaffAuthCallback() {
-  if (!window.elimSupabase) return;
+  if (!window.elimSupabase || !window.elimStaffAuthCallbackDetected) return;
 
-  const callbackUrl = new URL(window.location.href);
-  const hashParams = new URLSearchParams(callbackUrl.hash.slice(1));
-  const hasAuthCallback = callbackUrl.searchParams.has("code")
-    || hashParams.has("access_token")
-    || hashParams.get("type") === "magiclink";
+  let redirected = false;
+  const redirectToStaff = (session) => {
+    if (!session || redirected) return;
+    redirected = true;
+    window.location.replace(new URL("staff.html", window.location.href).href);
+  };
 
-  if (!hasAuthCallback) return;
+  const { data: authListener } = window.elimSupabase.auth.onAuthStateChange((event, session) => {
+    if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+      redirectToStaff(session);
+    }
+  });
 
   const { data, error } = await window.elimSupabase.auth.getSession();
   if (error) {
     console.error("Could not complete staff Magic Link redirect:", error);
+    authListener.subscription.unsubscribe();
     return;
   }
 
-  if (data.session) {
-    window.location.replace(new URL("staff.html", window.location.href).href);
+  redirectToStaff(data.session);
+
+  if (!redirected) {
+    window.setTimeout(() => authListener.subscription.unsubscribe(), 10000);
   }
 }
 
