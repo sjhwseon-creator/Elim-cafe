@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="de">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,18 +8,32 @@
     <title>Elim Café</title>
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icons/elim-icon.svg">
-    <link rel="stylesheet" href="css/styles.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&amp;family=Nunito:wght@500;600;700;800;900&amp;display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css?v=20261009-2">
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script defer src="js/supabase-config.js"></script>
-    <script defer src="js/menu.js?v=20260929"></script>
+    <script defer src="js/menu.js?v=20261009"></script>
     <script defer src="js/payment-config.js"></script>
-    <script defer src="js/customer.js"></script>
+    <script defer src="js/i18n.js?v=20261009-2"></script>
+    <script defer src="js/customer.js?v=20261009-2"></script>
   </head>
   <body class="customer-page">
-    <header class="app-header">
-      <div>
-        <p class="eyebrow">Welcome</p>
-        <h1>Elim Café</h1>
+    <header class="app-header customer-header">
+      <div class="brand-lockup">
+        <p class="eyebrow" data-i18n="header.welcome">Willkommen im</p>
+        <h1>Elim Café <span class="brand-heart" aria-hidden="true">♥</span></h1>
+        <p class="brand-tagline"><span data-i18n="header.tagline">Guter Kaffee · Hellere Tage</span> <span aria-hidden="true">♥</span></p>
+      </div>
+      <div class="header-tools">
+        <div class="language-selector" role="group" aria-label="Sprache auswählen" data-i18n-aria-label="language.selector">
+          <button type="button" data-language="de" aria-pressed="true">DE</button>
+          <button type="button" data-language="en" aria-pressed="false">EN</button>
+          <button type="button" data-language="ko" aria-pressed="false">KO</button>
+          <button type="button" data-language="zh" aria-pressed="false">中文</button>
+        </div>
+        <p class="header-note" aria-hidden="true"><span data-i18n="header.note">Ein bisschen Freude<br>in jeder Tasse</span> <span>♥</span></p>
       </div>
     </header>
 
@@ -27,8 +41,8 @@
       <section class="panel menu-panel" aria-labelledby="menu-heading">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Today&apos;s menu</p>
-            <h2 id="menu-heading">Choose your drinks</h2>
+            <p class="eyebrow" data-i18n="menu.eyebrow">Heutige Auswahl</p>
+            <h2 id="menu-heading" data-i18n="menu.intro">Wähle deine Getränke und mach deinen Tag ein bisschen schöner!</h2>
           </div>
         </div>
         <div id="menu-groups" class="menu-groups"></div>
@@ -37,40 +51,43 @@
       <aside class="panel cart-panel" aria-labelledby="cart-heading">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Your order</p>
-            <h2 id="cart-heading">Cart</h2>
+            <p class="eyebrow" data-i18n="cart.eyebrow">Deine Bestellung</p>
+            <h2 id="cart-heading" data-i18n="cart.title">Warenkorb</h2>
           </div>
           <strong id="cart-count" class="pill">0 items</strong>
         </div>
 
-        <div id="cart-items" class="cart-items empty-state">
-          Your selected drinks will appear here.
+        <div id="cart-items" class="cart-items empty-state" data-i18n="cart.empty">
+          Deine ausgewählten Getränke erscheinen hier.
         </div>
 
         <div class="total-row">
-          <span>Total</span>
+          <span data-i18n="cart.total">Gesamt</span>
           <strong id="cart-total">€0.00</strong>
         </div>
 
         <label class="field">
-          <span>Your name</span>
-          <input id="customer-name" type="text" autocomplete="name" placeholder="Enter your name">
+          <span data-i18n="customer.name">Dein Name</span>
+          <input id="customer-name" type="text" autocomplete="name" placeholder="Name eingeben" data-i18n-placeholder="customer.namePlaceholder">
         </label>
 
         <fieldset class="payment-section">
-          <legend>Payment method</legend>
+          <legend data-i18n="payment.title">Zahlungsart</legend>
           <div class="payment-options">
             <label class="payment-option">
               <input type="radio" name="payment-method" value="paypal">
-              <span>PayPal</span>
+              <span class="payment-icon paypal-icon" aria-hidden="true">P</span>
+              <span data-i18n="payment.paypal">PayPal</span>
             </label>
             <label class="payment-option">
               <input type="radio" name="payment-method" value="sepa">
-              <span>SEPA bank transfer</span>
+              <span class="payment-icon" aria-hidden="true">⌂</span>
+              <span data-i18n="payment.sepa">SEPA-Überweisung</span>
             </label>
             <label class="payment-option">
               <input type="radio" name="payment-method" value="cash">
-              <span>Cash</span>
+              <span class="payment-icon" aria-hidden="true">▣</span>
+              <span data-i18n="payment.cash">Barzahlung</span>
             </label>
           </div>
           <div id="payment-instructions" class="payment-instructions" hidden></div>
@@ -78,21 +95,21 @@
 
         <div id="order-summary" class="summary-box" hidden></div>
 
-        <button id="review-order" class="primary-button" type="button" disabled>Review Order</button>
-        <button id="place-order" class="primary-button confirm-button" type="button" hidden>Place Order</button>
-        <button id="clear-cart" class="secondary-button" type="button" disabled>Clear Cart</button>
+        <button id="review-order" class="primary-button" type="button" disabled><span data-i18n="order.review">Bestellung prüfen</span> <span aria-hidden="true">→</span></button>
+        <button id="place-order" class="primary-button confirm-button" type="button" hidden data-i18n="order.place">Bestellung aufgeben</button>
+        <button id="clear-cart" class="secondary-button" type="button" disabled><span aria-hidden="true">⌫</span> <span data-i18n="order.clear">Warenkorb leeren</span></button>
         <p id="form-message" class="form-message" role="status"></p>
       </aside>
     </main>
 
     <section id="confirmation-screen" class="confirmation-screen" hidden aria-live="polite">
       <div class="confirmation-card">
-        <p class="eyebrow">Thank you</p>
-        <h2>Order received!</h2>
+        <p class="eyebrow" data-i18n="confirmation.thankYou">Vielen Dank</p>
+        <h2 data-i18n="confirmation.received">Bestellung erhalten!</h2>
         <p id="confirmation-number" class="order-number"></p>
         <p id="confirmation-total" class="confirmation-total"></p>
-        <p>Please wait for your order.</p>
-        <button id="new-order" class="secondary-button" type="button">Start another order</button>
+        <p data-i18n="confirmation.wait">Bitte warte auf deine Bestellung.</p>
+        <button id="new-order" class="secondary-button" type="button" data-i18n="confirmation.newOrder">Neue Bestellung starten</button>
       </div>
     </section>
   </body>
