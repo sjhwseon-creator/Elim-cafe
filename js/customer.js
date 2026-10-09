@@ -49,11 +49,37 @@ const confirmationNumber = document.querySelector("#confirmation-number");
 const confirmationTotal = document.querySelector("#confirmation-total");
 const newOrder = document.querySelector("#new-order");
 
-const PAYMENT_LABELS = {
-  paypal: "PayPal",
-  sepa: "SEPA bank transfer",
-  cash: "Cash"
+let currentMessage = { key: "", variables: {}, isError: false };
+let lastConfirmation = null;
+
+const CATEGORY_PRESENTATION = {
+  Coffee: {
+    className: "coffee",
+    icon: "☕",
+    titleKey: "category.coffee",
+    descriptionKey: "category.coffeeDescription"
+  },
+  Latte: {
+    className: "latte",
+    icon: "☕",
+    titleKey: "category.latte",
+    descriptionKey: "category.latteDescription"
+  },
+  Ade: {
+    className: "ade",
+    icon: "🍹",
+    titleKey: "category.ade",
+    descriptionKey: "category.adeDescription"
+  }
 };
+
+function t(key, variables = {}) {
+  return window.ELIM_I18N.t(key, variables);
+}
+
+function getPaymentLabel(method) {
+  return t(`payment.${method}`);
+}
 
 function formatEuro(value) {
   return new Intl.NumberFormat("en-IE", {
@@ -75,10 +101,44 @@ function getMenuItem(id) {
   return window.ELIM_MENU.flatMap((group) => group.items).find((item) => item.id === id);
 }
 
+function getCartKey(id, variant = null) {
+  return `${id}::${variant || "standard"}`;
+}
+
+function parseCartKey(key) {
+  const separatorIndex = key.lastIndexOf("::");
+  const id = key.slice(0, separatorIndex);
+  const storedVariant = key.slice(separatorIndex + 2);
+  return { id, variant: storedVariant === "standard" ? null : storedVariant };
+}
+
+function getVariantLabel(variant) {
+  return variant ? t(`variant.${variant}`) : "";
+}
+
+function getVariantPrice(item, variant) {
+  return item.price + (variant === "ice" ? 0.5 : 0);
+}
+
+function getDisplayName(item) {
+  return item.variant ? `${item.name} (${getVariantLabel(item.variant)})` : item.name;
+}
+
 function getCartRows() {
   return Array.from(cart.entries())
-    .map(([id, quantity]) => ({ ...getMenuItem(id), quantity }))
-    .filter((item) => item.quantity > 0);
+    .map(([key, quantity]) => {
+      const { id, variant } = parseCartKey(key);
+      const menuItem = getMenuItem(id);
+      if (!menuItem) return null;
+
+      return {
+        ...menuItem,
+        variant,
+        price: getVariantPrice(menuItem, variant),
+        quantity
+      };
+    })
+    .filter((item) => item?.quantity > 0);
 }
 
 function getTotal(rows = getCartRows()) {
@@ -106,15 +166,15 @@ function renderPaymentInstructions() {
   if (method === "paypal") {
     const directPayment = hasPublicPaymentValue(config.paypalAccount)
       ? `
-        <p>Alternatively, you can send the payment directly to the following PayPal account.</p>
+        <p>${escapeHtml(t("payment.paypalAlternative"))}</p>
         <dl class="payment-details">
-          <div><dt>PayPal account</dt><dd>${escapeHtml(config.paypalAccount)}</dd></div>
+          <div><dt>${escapeHtml(t("payment.paypalAccount"))}</dt><dd>${escapeHtml(config.paypalAccount)}</dd></div>
         </dl>
       `
       : "";
 
     paymentInstructions.innerHTML = `
-      <p>Please scan the PayPal QR code displayed at the café counter and send your payment.</p>
+      <p>${escapeHtml(t("payment.paypalScan"))}</p>
       ${directPayment}
     `;
   }
@@ -124,39 +184,46 @@ function renderPaymentInstructions() {
       && hasPublicPaymentValue(config.sepaIban);
     const directPayment = hasBankDetails
       ? `
-        <p>Alternatively, you can transfer the payment directly using the following bank details.</p>
+        <p>${escapeHtml(t("payment.sepaAlternative"))}</p>
         <dl class="payment-details">
-          <div><dt>Bank name</dt><dd>${escapeHtml(config.bankName)}</dd></div>
+          <div><dt>${escapeHtml(t("payment.bankName"))}</dt><dd>${escapeHtml(config.bankName)}</dd></div>
           <div>
-            <dt>Account holder</dt>
-            <dd><span>${escapeHtml(config.sepaAccountHolder)}</span><button class="copy-button" type="button" data-copy="account-holder">Copy</button></dd>
+            <dt>${escapeHtml(t("payment.accountHolder"))}</dt>
+            <dd><span>${escapeHtml(config.sepaAccountHolder)}</span><button class="copy-button" type="button" data-copy="account-holder">${escapeHtml(t("payment.copy"))}</button></dd>
           </div>
           <div>
-            <dt>IBAN</dt>
-            <dd><span>${escapeHtml(config.sepaIban)}</span><button class="copy-button" type="button" data-copy="iban">Copy</button></dd>
+            <dt>${escapeHtml(t("payment.iban"))}</dt>
+            <dd><span>${escapeHtml(config.sepaIban)}</span><button class="copy-button" type="button" data-copy="iban">${escapeHtml(t("payment.copy"))}</button></dd>
           </div>
         </dl>
       `
       : "";
 
     paymentInstructions.innerHTML = `
-      <p>Please scan the bank transfer QR code displayed at the café counter.</p>
+      <p>${escapeHtml(t("payment.sepaScan"))}</p>
       ${directPayment}
       <dl class="payment-details">
-        <div><dt>Total amount</dt><dd>${formatEuro(getTotal())}</dd></div>
+        <div><dt>${escapeHtml(t("payment.totalAmount"))}</dt><dd>${formatEuro(getTotal())}</dd></div>
       </dl>
     `;
   }
 
   if (method === "cash") {
-    paymentInstructions.innerHTML = "<p>Please pay in cash at the café counter.</p>";
+    paymentInstructions.innerHTML = `<p>${escapeHtml(t("payment.cashInstruction"))}</p>`;
   }
 
   paymentInstructions.hidden = false;
 }
 
-function setMessage(message, isError = false) {
-  formMessage.textContent = message;
+function setMessage(key = "", variables = {}, isError = false) {
+  currentMessage = { key, variables, isError };
+  formMessage.textContent = key ? t(key, variables) : "";
+  formMessage.classList.toggle("error", isError);
+}
+
+function refreshMessage() {
+  const { key, variables, isError } = currentMessage;
+  formMessage.textContent = key ? t(key, variables) : "";
   formMessage.classList.toggle("error", isError);
 }
 
@@ -166,13 +233,14 @@ function hideOrderActions() {
   placeOrder.disabled = false;
 }
 
-function updateQuantity(id, change) {
-  const nextQuantity = Math.max(0, (cart.get(id) || 0) + change);
+function updateQuantity(id, variant, change) {
+  const key = getCartKey(id, variant);
+  const nextQuantity = Math.max(0, (cart.get(key) || 0) + change);
 
   if (nextQuantity === 0) {
-    cart.delete(id);
+    cart.delete(key);
   } else {
-    cart.set(id, nextQuantity);
+    cart.set(key, nextQuantity);
   }
 
   hideOrderActions();
@@ -181,65 +249,112 @@ function updateQuantity(id, change) {
   renderPaymentInstructions();
 }
 
+function renderQuantityControls(item, variant = null) {
+  const quantity = cart.get(getCartKey(item.id, variant)) || 0;
+  const variantLabel = getVariantLabel(variant);
+  const itemLabel = variantLabel ? `${item.name} ${variantLabel}` : item.name;
+
+  return `
+    <div class="quantity-controls" aria-label="${escapeHtml(t("aria.quantity", { item: itemLabel }))}">
+      <button class="qty-button" type="button" data-action="decrease" data-id="${escapeHtml(item.id)}" data-variant="${variant || ""}" aria-label="${escapeHtml(t("aria.removeOne", { item: itemLabel }))}" ${quantity === 0 ? "disabled" : ""}>-</button>
+      <span class="qty-value">${quantity}</span>
+      <button class="qty-button" type="button" data-action="increase" data-id="${escapeHtml(item.id)}" data-variant="${variant || ""}" aria-label="${escapeHtml(t("aria.addOne", { item: itemLabel }))}">+</button>
+    </div>
+  `;
+}
+
 function renderMenu() {
-  menuGroups.innerHTML = window.ELIM_MENU.map((group) => `
-    <div class="menu-group">
-      <h3 class="category-title">${group.category}</h3>
+  menuGroups.innerHTML = window.ELIM_MENU.map((group) => {
+    const presentation = CATEGORY_PRESENTATION[group.category] || {
+      className: "default",
+      icon: "☕",
+      titleKey: "",
+      descriptionKey: "category.defaultDescription"
+    };
+    const categoryTitle = presentation.titleKey ? t(presentation.titleKey) : group.category;
+
+    return `
+    <section class="menu-group category-${presentation.className}">
+      <div class="category-header">
+        <span class="category-art" aria-hidden="true">${presentation.icon}</span>
+        <div>
+          <h3 class="category-title">${escapeHtml(categoryTitle)}</h3>
+          <p class="category-description">${escapeHtml(t(presentation.descriptionKey))} <span aria-hidden="true">♥</span></p>
+        </div>
+      </div>
       <div class="menu-list">
         ${group.items.map((item) => {
-          const quantity = cart.get(item.id) || 0;
+          if (item.variants?.length) {
+            return `
+              <article class="menu-item has-variants">
+                <p class="item-name">${escapeHtml(item.name)}</p>
+                <div class="variant-options">
+                  ${item.variants.map((variant) => `
+                    <div class="variant-option">
+                      <div class="variant-heading">
+                        <span class="variant-name">${getVariantLabel(variant)}</span>
+                        <span class="variant-price">${formatEuro(getVariantPrice(item, variant))}</span>
+                      </div>
+                      ${renderQuantityControls(item, variant)}
+                    </div>
+                  `).join("")}
+                </div>
+              </article>
+            `;
+          }
+
           return `
             <article class="menu-item">
               <div>
-                <p class="item-name">${item.name}</p>
+                <p class="item-name">${escapeHtml(item.name)}</p>
                 <p class="item-price">${formatEuro(item.price)}</p>
               </div>
-              <div class="quantity-controls" aria-label="${item.name} quantity">
-                <button class="qty-button" type="button" data-action="decrease" data-id="${item.id}" aria-label="Remove one ${item.name}" ${quantity === 0 ? "disabled" : ""}>-</button>
-                <span class="qty-value">${quantity}</span>
-                <button class="qty-button" type="button" data-action="increase" data-id="${item.id}" aria-label="Add one ${item.name}">+</button>
-              </div>
+              ${renderQuantityControls(item)}
             </article>
           `;
         }).join("")}
       </div>
-    </div>
-  `).join("");
+    </section>
+  `;
+  }).join("");
 }
 
 function renderCart() {
   const rows = getCartRows();
   const itemCount = rows.reduce((sum, item) => sum + item.quantity, 0);
 
-  cartCount.textContent = `${itemCount} ${itemCount === 1 ? "item" : "items"}`;
+  cartCount.textContent = t(itemCount === 1 ? "cart.itemCountOne" : "cart.itemCountMany", { count: itemCount });
   cartTotal.textContent = formatEuro(getTotal(rows));
   reviewOrder.disabled = itemCount === 0;
   clearCart.disabled = itemCount === 0;
 
   if (rows.length === 0) {
     cartItems.className = "cart-items empty-state";
-    cartItems.textContent = "Your selected drinks will appear here.";
-    setMessage("");
+    cartItems.textContent = t("cart.empty");
+    setMessage();
     return;
   }
 
   cartItems.className = "cart-items";
-  cartItems.innerHTML = rows.map((item) => `
-    <article class="cart-item">
+  cartItems.innerHTML = rows.map((item) => {
+    const displayName = getDisplayName(item);
+    return `
+    <article class="cart-item" data-cart-key="${escapeHtml(getCartKey(item.id, item.variant))}">
       <div>
-        <p class="item-name">${item.name}</p>
+        <p class="item-name">${escapeHtml(displayName)}</p>
         <p class="item-meta">${item.quantity} x ${formatEuro(item.price)} = ${formatEuro(item.price * item.quantity)}</p>
       </div>
       <div class="cart-actions">
-        <div class="quantity-controls" aria-label="${item.name} cart quantity">
-          <button class="qty-button" type="button" data-action="decrease" data-id="${item.id}" aria-label="Remove one ${item.name}">-</button>
+        <div class="quantity-controls" aria-label="${escapeHtml(t("aria.cartQuantity", { item: displayName }))}">
+          <button class="qty-button" type="button" data-action="decrease" data-id="${escapeHtml(item.id)}" data-variant="${item.variant || ""}" aria-label="${escapeHtml(t("aria.removeOne", { item: displayName }))}">-</button>
           <span class="qty-value">${item.quantity}</span>
-          <button class="qty-button" type="button" data-action="increase" data-id="${item.id}" aria-label="Add one ${item.name}">+</button>
+          <button class="qty-button" type="button" data-action="increase" data-id="${escapeHtml(item.id)}" data-variant="${item.variant || ""}" aria-label="${escapeHtml(t("aria.addOne", { item: displayName }))}">+</button>
         </div>
-        <button class="remove-button" type="button" data-action="remove" data-id="${item.id}">Remove</button>
+        <button class="remove-button" type="button" data-action="remove" data-id="${escapeHtml(item.id)}" data-variant="${item.variant || ""}">${escapeHtml(t("cart.remove"))}</button>
       </div>
     </article>
-  `).join("");
+  `;
+  }).join("");
 }
 
 function renderSummary() {
@@ -248,33 +363,44 @@ function renderSummary() {
   const paymentMethod = getSelectedPaymentMethod();
 
   if (!rows.length) {
-    setMessage("Please add at least one item.", true);
+    setMessage("validation.addItem", {}, true);
     return;
   }
 
   if (!name) {
-    setMessage("Please enter your name before ordering.", true);
+    setMessage("validation.enterName", {}, true);
     customerName.focus();
     return;
   }
 
   if (!paymentMethod) {
-    setMessage("Please select a payment method before ordering.", true);
+    setMessage("validation.selectPayment", {}, true);
     paymentMethodInputs[0]?.focus();
     return;
   }
 
-  setMessage("");
+  setMessage();
   orderSummary.innerHTML = `
-    <strong>Confirm order for ${escapeHtml(name)}</strong>
+    <strong>${escapeHtml(t("order.confirmFor", { name }))}</strong>
     <ul>
-      ${rows.map((item) => `<li>${item.quantity} x ${item.name} - ${formatEuro(item.price * item.quantity)}</li>`).join("")}
+      ${rows.map((item) => `<li>${item.quantity} x ${escapeHtml(getDisplayName(item))} - ${formatEuro(item.price * item.quantity)}</li>`).join("")}
     </ul>
-    <p><strong>Total: ${formatEuro(getTotal(rows))}</strong></p>
-    <p>Payment method: <strong>${PAYMENT_LABELS[paymentMethod]}</strong></p>
+    <p><strong>${escapeHtml(t("order.total", { total: formatEuro(getTotal(rows)) }))}</strong></p>
+    <p>${escapeHtml(t("order.paymentMethod"))}: <strong>${escapeHtml(getPaymentLabel(paymentMethod))}</strong></p>
   `;
   orderSummary.hidden = false;
   placeOrder.hidden = false;
+}
+
+function renderConfirmation() {
+  if (!lastConfirmation) return;
+
+  confirmationNumber.textContent = t("order.number", {
+    number: lastConfirmation.orderNumber
+  });
+  confirmationTotal.textContent = t("order.total", {
+    total: formatEuro(lastConfirmation.totalPrice)
+  });
 }
 
 async function submitOrder() {
@@ -285,35 +411,36 @@ async function submitOrder() {
   const paymentMethod = getSelectedPaymentMethod();
 
   if (!rows.length) {
-    setMessage("Please add at least one item.", true);
+    setMessage("validation.addItem", {}, true);
     return;
   }
 
   if (!name) {
-    setMessage("Please enter your name before ordering.", true);
+    setMessage("validation.enterName", {}, true);
     customerName.focus();
     return;
   }
 
   if (!paymentMethod) {
-    setMessage("Please select a payment method before ordering.", true);
+    setMessage("validation.selectPayment", {}, true);
     paymentMethodInputs[0]?.focus();
     return;
   }
 
   if (!window.elimSupabaseConfigured || !window.elimSupabase) {
-    setMessage("Add your Supabase URL and publishable key in js/supabase-config.js before placing orders.", true);
+    setMessage("error.serviceUnavailable", {}, true);
     return;
   }
 
   placeOrder.disabled = true;
-  setMessage("Sending your order...");
+  setMessage("order.sending");
 
   const { data: order, error } = await window.elimSupabase.rpc("create_order", {
     p_customer_name: name,
     p_payment_method: paymentMethod,
     p_items: rows.map((item) => ({
       item_id: item.id,
+      variant: item.variant,
       quantity: item.quantity
     }))
   });
@@ -321,12 +448,15 @@ async function submitOrder() {
   if (error || !order?.order_number) {
     console.error("Supabase RPC error while creating order:", error || order);
     placeOrder.disabled = false;
-    setMessage(`Could not place order: ${error?.message || "Invalid server response."}`, true);
+    setMessage("error.orderFailed", {}, true);
     return;
   }
 
-  confirmationNumber.textContent = `Order #${order.order_number}`;
-  confirmationTotal.textContent = `Total: ${formatEuro(Number(order.total_price))}`;
+  lastConfirmation = {
+    orderNumber: order.order_number,
+    totalPrice: Number(order.total_price)
+  };
+  renderConfirmation();
   confirmationScreen.hidden = false;
 
   cart.clear();
@@ -354,10 +484,10 @@ async function copyPaymentDetail(detail) {
 
   try {
     await navigator.clipboard.writeText(value);
-    setMessage(`${detail === "iban" ? "IBAN" : "Account holder"} copied.`);
+    setMessage(detail === "iban" ? "copy.ibanSuccess" : "copy.accountHolderSuccess");
   } catch (error) {
     console.error("Could not copy payment detail:", error);
-    setMessage("Could not copy automatically. Please select and copy the text.", true);
+    setMessage("copy.failed", {}, true);
   }
 }
 
@@ -366,16 +496,17 @@ document.addEventListener("click", (event) => {
   if (!button) return;
 
   const { action, id } = button.dataset;
+  const variant = button.dataset.variant || null;
 
   if (button.dataset.copy) {
     copyPaymentDetail(button.dataset.copy);
     return;
   }
 
-  if (action === "increase") updateQuantity(id, 1);
-  if (action === "decrease") updateQuantity(id, -1);
+  if (action === "increase") updateQuantity(id, variant, 1);
+  if (action === "decrease") updateQuantity(id, variant, -1);
   if (action === "remove") {
-    cart.delete(id);
+    cart.delete(getCartKey(id, variant));
     hideOrderActions();
     renderMenu();
     renderCart();
@@ -402,9 +533,22 @@ newOrder.addEventListener("click", () => {
   confirmationScreen.hidden = true;
 });
 
+document.addEventListener("elim:languagechange", () => {
+  const preservedMessage = currentMessage;
+
+  renderMenu();
+  renderCart();
+  renderPaymentInstructions();
+  if (!orderSummary.hidden) renderSummary();
+  renderConfirmation();
+
+  currentMessage = preservedMessage;
+  refreshMessage();
+});
+
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20260930");
+    navigator.serviceWorker.register("service-worker.js?v=20261009-2");
   });
 }
 

@@ -57,6 +57,11 @@ function statusLabel(status) {
     .join(" ");
 }
 
+function orderItemLabel(item) {
+  if (!item.variant) return item.item_name;
+  return `${item.item_name} - ${statusLabel(item.variant)}`;
+}
+
 function showLogin(message = "", isError = false) {
   loginPanel.hidden = false;
   staffDashboard.hidden = true;
@@ -92,7 +97,7 @@ function renderOrders() {
       <ul class="order-items">
         ${(order.order_items || []).map((item) => `
           <li>
-            <strong>${escapeHtml(item.quantity)} x ${escapeHtml(item.item_name)}</strong>
+            <strong>${escapeHtml(item.quantity)} x ${escapeHtml(orderItemLabel(item))}</strong>
             <span>${formatEuro(item.unit_price)}</span>
           </li>
         `).join("")}
@@ -139,7 +144,7 @@ async function loadOrders() {
 
   const { data, error } = await window.elimSupabase
     .from("orders")
-    .select("id, order_number, customer_name, total_price, payment_method, status, created_at, order_items(item_name, quantity, unit_price)")
+    .select("id, order_number, customer_name, total_price, payment_method, status, created_at, order_items(item_name, variant, quantity, unit_price)")
     .order("created_at", { ascending: false });
 
   refreshOrders.disabled = false;
