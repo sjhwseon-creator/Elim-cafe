@@ -31,8 +31,8 @@ security definer
 set search_path = public, pg_temp
 as $$
 declare
-  v_order_id uuid;
-  v_order_number integer;
+  v_order_id public.orders.id%TYPE;
+  v_order_number public.orders.order_number%TYPE;
   v_total numeric(10, 2);
 begin
   if char_length(btrim(coalesce(p_customer_name, ''))) not between 1 and 100 then
