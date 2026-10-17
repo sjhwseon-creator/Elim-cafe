@@ -1,7 +1,8 @@
 const loginPanel = document.querySelector("#staff-login-panel");
 const loginForm = document.querySelector("#staff-login-form");
 const staffEmail = document.querySelector("#staff-email");
-const sendMagicLink = document.querySelector("#send-magic-link");
+const staffPassword = document.querySelector("#staff-password");
+const staffSignIn = document.querySelector("#staff-sign-in");
 const loginMessage = document.querySelector("#login-message");
 const staffDashboard = document.querySelector("#staff-dashboard");
 const staffLogout = document.querySelector("#staff-logout");
@@ -224,35 +225,31 @@ async function handleSession(session) {
   subscribeToOrders();
 }
 
-async function sendStaffMagicLink(event) {
+async function signInStaff(event) {
   event.preventDefault();
   const email = staffEmail.value.trim();
-  if (!email) return;
+  const password = staffPassword.value;
+  if (!email || !password) return;
 
-  sendMagicLink.disabled = true;
-  setMessage(loginMessage, "Sending sign-in link...");
+  staffSignIn.disabled = true;
+  setMessage(loginMessage, "Signing in...");
 
-  const redirectUrl = window.ElimNativePrinter
-    ? "elimcafe://auth"
-    : new URL("staff.html", window.location.href).href;
-  console.info("Staff Magic Link redirect URL:", redirectUrl);
-  const { error } = await window.elimSupabase.auth.signInWithOtp({
+  const { data, error } = await window.elimSupabase.auth.signInWithPassword({
     email,
-    options: {
-      emailRedirectTo: redirectUrl,
-      shouldCreateUser: false
-    }
+    password
   });
 
-  sendMagicLink.disabled = false;
+  staffSignIn.disabled = false;
 
   if (error) {
-    console.error("Could not send staff magic link:", error);
-    setMessage(loginMessage, `Could not send sign-in link: ${error.message}`, true);
+    console.error("Could not sign in staff user:", error);
+    setMessage(loginMessage, `Could not sign in: ${error.message}`, true);
     return;
   }
 
-  setMessage(loginMessage, "Check the staff inbox and open the sign-in link on this tablet.");
+  if (!data.session) {
+    setMessage(loginMessage, "Could not sign in: Supabase did not return a session.", true);
+  }
 }
 
 async function initializeStaffApp() {
@@ -262,9 +259,9 @@ async function initializeStaffApp() {
     return;
   }
 
-  const { data, error } = await window.elimCompleteAuthCallback();
+  const { data, error } = await window.elimSupabase.auth.getSession();
   if (error) {
-    console.error("Could not complete or restore staff session:", error);
+    console.error("Could not restore staff session:", error);
     showLogin(`Could not sign in: ${error.message}`, true);
   } else {
     await handleSession(data.session);
@@ -282,7 +279,7 @@ ordersList.addEventListener("click", (event) => {
   updateOrderStatus(button.dataset.orderId, button.dataset.status);
 });
 
-loginForm.addEventListener("submit", sendStaffMagicLink);
+loginForm.addEventListener("submit", signInStaff);
 refreshOrders.addEventListener("click", loadOrders);
 staffLogout.addEventListener("click", async () => {
   staffLogout.disabled = true;
@@ -297,7 +294,7 @@ staffLogout.addEventListener("click", async () => {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20260930");
+    navigator.serviceWorker.register("service-worker.js?v=20261017");
   });
 }
 
