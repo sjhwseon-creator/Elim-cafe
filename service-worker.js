@@ -1,4 +1,4 @@
-const CACHE_NAME = "elim-cafe-i18n-v6";
+const CACHE_NAME = "elim-cafe-i18n-v7";
 const APP_SHELL = [
   "./",
   "index.html",
@@ -11,7 +11,7 @@ const APP_SHELL = [
   "js/receipt.js",
   "js/printer-bridge.js",
   "js/printer-test.js",
-  "js/staff.js?v=20261009",
+  "js/staff.js?v=20261017",
   "manifest.json",
   "icons/elim-icon.svg",
   "icons/elim-maskable.svg"
@@ -39,8 +39,12 @@ self.addEventListener("fetch", (event) => {
   if (requestUrl.origin !== self.location.origin) return;
 
   if (event.request.mode === "navigate") {
+    const fallbackPage = requestUrl.pathname.endsWith("/staff.html")
+      ? "staff.html"
+      : "index.html";
+
     event.respondWith(
-      fetch(event.request).catch(() => caches.match("index.html"))
+      fetch(event.request).catch(() => caches.match(fallbackPage))
     );
     return;
   }

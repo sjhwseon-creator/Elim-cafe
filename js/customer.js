@@ -548,7 +548,7 @@ document.addEventListener("elim:languagechange", () => {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20261009-2");
+    navigator.serviceWorker.register("service-worker.js?v=20261017");
   });
 }
 

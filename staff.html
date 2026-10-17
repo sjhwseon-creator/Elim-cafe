@@ -13,7 +13,7 @@
     <script defer src="js/receipt.js"></script>
     <script defer src="js/printer-bridge.js"></script>
     <script defer src="js/printer-test.js"></script>
-    <script defer src="js/staff.js?v=20261009"></script>
+    <script defer src="js/staff.js?v=20261017"></script>
   </head>
   <body class="staff-page">
     <header class="app-header">
@@ -31,13 +31,17 @@
       <section id="staff-login-panel" class="panel staff-login-panel" aria-labelledby="staff-login-heading">
         <p class="eyebrow">Staff access</p>
         <h2 id="staff-login-heading">Sign in to the dashboard</h2>
-        <p>Enter the shared café staff email. Supabase will send a secure sign-in link.</p>
+        <p>Enter the shared café staff email and password.</p>
         <form id="staff-login-form">
           <label class="field">
             <span>Staff email</span>
             <input id="staff-email" type="email" autocomplete="email" inputmode="email" required placeholder="Staff email address">
           </label>
-          <button id="send-magic-link" class="primary-button" type="submit">Send magic link</button>
+          <label class="field">
+            <span>Password</span>
+            <input id="staff-password" type="password" autocomplete="current-password" required placeholder="Password">
+          </label>
+          <button id="staff-sign-in" class="primary-button" type="submit">Sign in</button>
         </form>
         <div id="login-message" class="form-message" role="status"></div>
       </section>
