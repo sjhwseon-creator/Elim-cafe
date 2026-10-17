@@ -533,6 +533,128 @@ button:disabled {
   min-width: 120px;
 }
 
+.printer-warning {
+  margin: 16px 0;
+  padding: 12px 14px;
+  border: 1px solid #d49a4a;
+  border-left: 4px solid #b96d20;
+  border-radius: 6px;
+  background: #fff4df;
+  color: #6f3d13;
+  font-weight: 700;
+}
+
+.receipt-settings {
+  padding: 22px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.receipt-settings-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.7fr);
+  gap: 18px 24px;
+}
+
+.receipt-settings-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.receipt-settings .field textarea,
+.receipt-settings .field select {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--ink);
+  font: inherit;
+}
+
+.receipt-settings .field textarea {
+  resize: vertical;
+}
+
+.receipt-options {
+  display: grid;
+  align-content: start;
+  gap: 9px;
+  margin: 0;
+  padding: 12px 14px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.receipt-options legend {
+  padding: 0 6px;
+  font-weight: 800;
+}
+
+.receipt-options label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 32px;
+}
+
+.receipt-options input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--coffee);
+}
+
+.receipt-settings-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.receipt-preview {
+  width: min(100%, 38ch);
+  min-height: 220px;
+  margin: 14px 0 0;
+  padding: 16px;
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fffdf8;
+  color: #24170f;
+  font: 15px/1.35 "Courier New", monospace;
+  white-space: pre;
+}
+
+.print-state-group {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.print-status {
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: var(--muted);
+}
+
+.print-status.printed {
+  color: #347348;
+}
+
+.print-status.failed {
+  color: #a13a2d;
+}
+
+.print-status.printing {
+  color: #8a5b18;
+}
+
+.reprint-button {
+  min-width: 92px;
+}
+
 .staff-page .form-message {
   margin: 0 0 14px;
 }
@@ -645,6 +767,20 @@ button:disabled {
 }
 
 @media (max-width: 460px) {
+  .receipt-settings-form,
+  .receipt-settings-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .receipt-settings-actions .small-button {
+    flex: 1 1 140px;
+  }
+
+  .print-state-group {
+    width: 100%;
+    justify-content: space-between;
+  }
+
   .app-header {
     align-items: flex-start;
   }

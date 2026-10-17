@@ -9,15 +9,24 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
+import android.bluetooth.le.ScanSettings
+import android.companion.AssociationInfo
+import android.companion.AssociationRequest
+import android.companion.BluetoothDeviceFilter
+import android.companion.BluetoothLeDeviceFilter
+import android.companion.CompanionDeviceManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.IntentSender
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import android.view.ViewGroup
@@ -41,8 +50,22 @@ class MainActivity : Activity(), WebPrinterBridge.Host {
     private var pendingConnectRequestId: String? = null
     private var selectorDialog: AlertDialog? = null
     private var receiverRegistered = false
+    private var bleScanRunning = false
     private val discoveredDevices = linkedMapOf<String, BluetoothDevice>()
     private var deviceListAdapter: ArrayAdapter<String>? = null
+    private val scanHandler = Handler(Looper.getMainLooper())
+
+    private val classicScanFallback = Runnable {
+        startClassicDiscovery()
+    }
+
+    private val emptyScanNotice = Runnable {
+        if (discoveredDevices.isEmpty()) {
+            selectorDialog?.setMessage(
+                "No devices found yet. Turn on Android Location, keep the printer powered on and nearby, then tap Scan again."
+            )
+        }
+    }
 
     private val discoveryReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -68,6 +91,13 @@ class MainActivity : Activity(), WebPrinterBridge.Host {
 
         override fun onScanFailed(errorCode: Int) {
             Log.w(TAG, "BLE scan failed with code $errorCode")
+            bleScanRunning = false
+            runOnUiThread {
+                selectorDialog?.setMessage(
+                    "BLE scan failed (${bleScanError(errorCode)}). Trying Bluetooth Classic..."
+                )
+                startClassicDiscovery()
+            }
         }
     }
 
@@ -164,7 +194,7 @@ class MainActivity : Activity(), WebPrinterBridge.Host {
             if (!hasBluetoothPermissions()) {
                 requestPermissions(REQUIRED_PERMISSIONS, BLUETOOTH_PERMISSION_REQUEST)
             } else {
-                openDeviceSelector()
+                openSystemDeviceSelector()
             }
         }
     }
@@ -211,7 +241,7 @@ class MainActivity : Activity(), WebPrinterBridge.Host {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (requestCode != BLUETOOTH_PERMISSION_REQUEST) return
         if (grantResults.isNotEmpty() && grantResults.all { it == PackageManager.PERMISSION_GRANTED }) {
-            openDeviceSelector()
+            openSystemDeviceSelector()
         } else {
             val requestId = pendingConnectRequestId ?: return
             pendingConnectRequestId = null
@@ -219,6 +249,210 @@ class MainActivity : Activity(), WebPrinterBridge.Host {
                 requestId,
                 false,
                 "Nearby devices permission is required to select and connect the printer.",
+                currentStatus()
+            )
+        }
+    }
+
+    private fun openSystemDeviceSelector() {
+        val requestId = pendingConnectRequestId ?: return
+        val adapter = bluetoothAdapter
+        if (adapter == null) {
+            pendingConnectRequestId = null
+            bridge.resolve(requestId, false, "This tablet has no Bluetooth adapter.", currentStatus())
+            return
+        }
+        if (!adapter.isEnabled) {
+            pendingConnectRequestId = null
+            bridge.resolve(requestId, false, "Turn on Bluetooth in Android settings, then try Connect again.", currentStatus())
+            startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS))
+            return
+        }
+
+        val manager = getSystemService(CompanionDeviceManager::class.java)
+        if (manager == null) {
+            openDeviceSelector()
+            return
+        }
+
+        val request = AssociationRequest.Builder()
+            .addDeviceFilter(BluetoothLeDeviceFilter.Builder().build())
+            .addDeviceFilter(BluetoothDeviceFilter.Builder().build())
+            .setSingleDevice(false)
+            .build()
+
+        val callback = object : CompanionDeviceManager.Callback() {
+            override fun onAssociationPending(intentSender: IntentSender) {
+                launchCompanionSelector(intentSender)
+            }
+
+            @Deprecated("Used on Android 12L and below")
+            override fun onDeviceFound(intentSender: IntentSender) {
+                launchCompanionSelector(intentSender)
+            }
+
+            override fun onAssociationCreated(associationInfo: AssociationInfo) {
+                runOnUiThread {
+                    completeCompanionSelection(associationInfo)
+                }
+            }
+
+            override fun onFailure(error: CharSequence?) {
+                runOnUiThread {
+                    pendingConnectRequestId = null
+                    bridge.resolve(
+                        requestId,
+                        false,
+                        "Android device selection failed: ${error ?: "unknown error"}",
+                        currentStatus()
+                    )
+                }
+            }
+        }
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                manager.associate(request, mainExecutor, callback)
+            } else {
+                @Suppress("DEPRECATION")
+                manager.associate(request, callback, null)
+            }
+        } catch (error: Exception) {
+            pendingConnectRequestId = null
+            bridge.resolve(
+                requestId,
+                false,
+                "Could not open Android device selection: ${error.message ?: "unknown error"}",
+                currentStatus()
+            )
+        }
+    }
+
+    private fun launchCompanionSelector(intentSender: IntentSender) {
+        try {
+            startIntentSenderForResult(intentSender, COMPANION_DEVICE_REQUEST, null, 0, 0, 0)
+        } catch (error: IntentSender.SendIntentException) {
+            val requestId = pendingConnectRequestId ?: return
+            pendingConnectRequestId = null
+            bridge.resolve(
+                requestId,
+                false,
+                "Could not show Android device selection: ${error.message ?: "unknown error"}",
+                currentStatus()
+            )
+        }
+    }
+
+    @Deprecated("Activity result compatibility for the system companion-device selector")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != COMPANION_DEVICE_REQUEST) return
+
+        // Android 13+ normally completes through onAssociationCreated().
+        if (pendingConnectRequestId == null) return
+        val requestId = pendingConnectRequestId ?: return
+        if (resultCode != RESULT_OK || data == null) {
+            pendingConnectRequestId = null
+            bridge.resolve(requestId, false, "Printer selection was cancelled.", currentStatus())
+            return
+        }
+
+        try {
+            val association = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                data.getParcelableExtra(
+                    CompanionDeviceManager.EXTRA_ASSOCIATION,
+                    AssociationInfo::class.java
+                )
+            } else {
+                null
+            }
+            if (association != null) {
+                completeCompanionSelection(association)
+                return
+            }
+
+            val device = legacySelectedCompanionDevice(data)
+            if (device == null) {
+                pendingConnectRequestId = null
+                bridge.resolve(requestId, false, "Android did not return a Bluetooth device.", currentStatus())
+                return
+            }
+
+            pendingConnectRequestId = null
+            connectSelectedDevice(requestId, device)
+        } catch (error: Exception) {
+            pendingConnectRequestId = null
+            Log.e(TAG, "Could not read selected companion device", error)
+            bridge.resolve(
+                requestId,
+                false,
+                "Could not read selected printer: ${error.message ?: error.javaClass.simpleName}",
+                currentStatus()
+            )
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun completeCompanionSelection(association: AssociationInfo) {
+        val requestId = pendingConnectRequestId ?: return
+        try {
+            val device = selectedCompanionDevice(association)
+            if (device == null) {
+                pendingConnectRequestId = null
+                bridge.resolve(requestId, false, "Android associated the device but returned no Bluetooth details.", currentStatus())
+                return
+            }
+            pendingConnectRequestId = null
+            connectSelectedDevice(requestId, device)
+        } catch (error: Exception) {
+            pendingConnectRequestId = null
+            Log.e(TAG, "Could not complete companion-device selection", error)
+            bridge.resolve(
+                requestId,
+                false,
+                "Could not use selected printer: ${error.message ?: error.javaClass.simpleName}",
+                currentStatus()
+            )
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun selectedCompanionDevice(association: AssociationInfo): BluetoothDevice? {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val associated = association.associatedDevice
+            associated?.bluetoothDevice?.let { return it }
+            associated?.bleDevice?.device?.let { return it }
+        }
+
+        val address = association.deviceMacAddress?.toString()
+        return address?.takeIf { it.isNotBlank() }?.let { bluetoothAdapter?.getRemoteDevice(it) }
+    }
+
+    private fun legacySelectedCompanionDevice(data: Intent): BluetoothDevice? {
+        @Suppress("DEPRECATION")
+        return when (val selected = data.getParcelableExtra<android.os.Parcelable>(CompanionDeviceManager.EXTRA_DEVICE)) {
+            is BluetoothDevice -> selected
+            is ScanResult -> selected.device
+            else -> null
+        }
+    }
+
+    private fun connectSelectedDevice(requestId: String, device: BluetoothDevice) {
+        try {
+            printer.connect(device) { result ->
+                bridge.resolve(
+                    requestId,
+                    result.isSuccess,
+                    result.exceptionOrNull()?.message,
+                    currentStatus()
+                )
+            }
+        } catch (error: Exception) {
+            Log.e(TAG, "Printer connection could not start", error)
+            bridge.resolve(
+                requestId,
+                false,
+                "Printer connection could not start: ${error.message ?: error.javaClass.simpleName}",
                 currentStatus()
             )
         }
@@ -247,28 +481,25 @@ class MainActivity : Activity(), WebPrinterBridge.Host {
 
         selectorDialog = AlertDialog.Builder(this)
             .setTitle("Select receipt printer")
-            .setMessage("Paired and nearby Bluetooth devices")
+            .setMessage("Scanning for nearby BLE printers...")
             .setAdapter(listAdapter) { _, position ->
                 val device = discoveredDevices.values.elementAtOrNull(position) ?: return@setAdapter
                 stopScanning()
                 selectorDialog = null
                 pendingConnectRequestId = null
-                printer.connect(device) { result ->
-                    bridge.resolve(
-                        requestId,
-                        result.isSuccess,
-                        result.exceptionOrNull()?.message,
-                        currentStatus()
-                    )
-                }
+                connectSelectedDevice(requestId, device)
             }
             .setNegativeButton("Cancel") { _, _ ->
                 pendingConnectRequestId = null
                 bridge.resolve(requestId, false, "Printer selection was cancelled.", currentStatus())
             }
+            .setNeutralButton("Scan again", null)
             .create()
         selectorDialog?.setOnDismissListener { stopScanning() }
         selectorDialog?.show()
+        selectorDialog?.getButton(AlertDialog.BUTTON_NEUTRAL)?.setOnClickListener {
+            restartScanning(adapter)
+        }
         startScanning(adapter)
     }
 
@@ -283,22 +514,73 @@ class MainActivity : Activity(), WebPrinterBridge.Host {
             }
             receiverRegistered = true
         }
+
+        var bleStarted = false
         try {
-            adapter.startDiscovery()
-            adapter.bluetoothLeScanner?.startScan(bleScanCallback)
+            val scanner = adapter.bluetoothLeScanner
+            if (scanner != null) {
+                val settings = ScanSettings.Builder()
+                    .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                    .build()
+                scanner.startScan(null, settings, bleScanCallback)
+                bleScanRunning = true
+                bleStarted = true
+                Log.i(TAG, "Started low-latency BLE scan")
+            }
         } catch (error: Exception) {
-            Log.w(TAG, "Could not start all Bluetooth scans", error)
+            Log.w(TAG, "Could not start BLE scan", error)
         }
+
+        if (bleStarted) {
+            scanHandler.postDelayed(classicScanFallback, CLASSIC_FALLBACK_DELAY_MS)
+        } else {
+            selectorDialog?.setMessage("BLE scanning is unavailable. Scanning Bluetooth Classic devices...")
+            startClassicDiscovery()
+        }
+        scanHandler.postDelayed(emptyScanNotice, EMPTY_SCAN_NOTICE_DELAY_MS)
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun startClassicDiscovery() {
+        val adapter = bluetoothAdapter ?: return
+        if (adapter.isDiscovering) return
+        try {
+            val started = adapter.startDiscovery()
+            Log.i(TAG, "Classic Bluetooth discovery started=$started")
+            if (!started && discoveredDevices.isEmpty()) {
+                selectorDialog?.setMessage(
+                    "Bluetooth scan could not start. Check Nearby devices permission, then tap Scan again."
+                )
+            } else if (discoveredDevices.isEmpty()) {
+                selectorDialog?.setMessage("Scanning BLE and Bluetooth Classic devices...")
+            }
+        } catch (error: Exception) {
+            Log.w(TAG, "Could not start Classic Bluetooth discovery", error)
+            selectorDialog?.setMessage("Bluetooth scan error: ${error.message ?: "unknown error"}")
+        }
+    }
+
+    private fun restartScanning(adapter: BluetoothAdapter) {
+        stopScanning()
+        discoveredDevices.clear()
+        deviceListAdapter?.clear()
+        selectorDialog?.setMessage("Scanning for nearby BLE printers...")
+        startScanning(adapter)
     }
 
     @SuppressLint("MissingPermission")
     private fun stopScanning() {
+        scanHandler.removeCallbacks(classicScanFallback)
+        scanHandler.removeCallbacks(emptyScanNotice)
         try {
             bluetoothAdapter?.cancelDiscovery()
-            bluetoothAdapter?.bluetoothLeScanner?.stopScan(bleScanCallback)
+            if (bleScanRunning) {
+                bluetoothAdapter?.bluetoothLeScanner?.stopScan(bleScanCallback)
+            }
         } catch (error: Exception) {
             Log.w(TAG, "Could not stop Bluetooth scan", error)
         }
+        bleScanRunning = false
         if (receiverRegistered) {
             try {
                 unregisterReceiver(discoveryReceiver)
@@ -323,7 +605,18 @@ class MainActivity : Activity(), WebPrinterBridge.Host {
             }
             deviceListAdapter?.add("${name?.takeIf { it.isNotBlank() } ?: "Unnamed device"}\n$bond · $kind · $address")
             deviceListAdapter?.notifyDataSetChanged()
+            selectorDialog?.setMessage("Select a nearby receipt printer.")
         }
+    }
+
+    private fun bleScanError(errorCode: Int): String = when (errorCode) {
+        ScanCallback.SCAN_FAILED_ALREADY_STARTED -> "scan already started"
+        ScanCallback.SCAN_FAILED_APPLICATION_REGISTRATION_FAILED -> "scanner registration failed"
+        ScanCallback.SCAN_FAILED_INTERNAL_ERROR -> "internal scanner error"
+        ScanCallback.SCAN_FAILED_FEATURE_UNSUPPORTED -> "BLE scan unsupported"
+        ScanCallback.SCAN_FAILED_OUT_OF_HARDWARE_RESOURCES -> "scanner resources unavailable"
+        ScanCallback.SCAN_FAILED_SCANNING_TOO_FREQUENTLY -> "scanning too frequently"
+        else -> "code $errorCode"
     }
 
     override fun onBackPressed() {
@@ -346,10 +639,13 @@ class MainActivity : Activity(), WebPrinterBridge.Host {
         private const val AUTH_SCHEME = "elimcafe"
         private const val AUTH_HOST = "auth"
         private const val BLUETOOTH_PERMISSION_REQUEST = 1001
+        private const val COMPANION_DEVICE_REQUEST = 1002
+        private const val CLASSIC_FALLBACK_DELAY_MS = 6_000L
+        private const val EMPTY_SCAN_NOTICE_DELAY_MS = 15_000L
         private val REQUIRED_PERMISSIONS = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
         } else {
-            emptyArray()
+            arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
         }
     }
 }

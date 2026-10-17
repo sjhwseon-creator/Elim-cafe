@@ -9,6 +9,24 @@ const staffLogout = document.querySelector("#staff-logout");
 const ordersList = document.querySelector("#orders-list");
 const staffMessage = document.querySelector("#staff-message");
 const refreshOrders = document.querySelector("#refresh-orders");
+const printerWarning = document.querySelector("#printer-warning");
+const receiptSettingsForm = document.querySelector("#receipt-settings-form");
+const receiptSettingsMessage = document.querySelector("#receipt-settings-message");
+const receiptPreview = document.querySelector("#receipt-preview");
+const receiptPreviewButton = document.querySelector("#receipt-preview-button");
+const receiptTestPrint = document.querySelector("#receipt-test-print");
+
+const receiptFields = {
+  cafe_name: document.querySelector("#receipt-cafe-name"),
+  header_text: document.querySelector("#receipt-header-text"),
+  footer_text: document.querySelector("#receipt-footer-text"),
+  separator_style: document.querySelector("#receipt-separator-style"),
+  show_customer_name: document.querySelector("#receipt-show-customer"),
+  show_order_number: document.querySelector("#receipt-show-order-number"),
+  show_payment_method: document.querySelector("#receipt-show-payment"),
+  show_order_time: document.querySelector("#receipt-show-time"),
+  show_total: document.querySelector("#receipt-show-total")
+};
 
 const STATUSES = ["new", "preparing", "completed"];
 const PAYMENT_LABELS = {
@@ -20,6 +38,12 @@ const PAYMENT_LABELS = {
 let orders = [];
 let realtimeChannel = null;
 let pendingLoginError = "";
+let receiptSettings = { ...window.elimReceipt.defaultSettings };
+let receiptSettingsLoaded = false;
+let printerConnected = false;
+let printQueue = Promise.resolve();
+const activePrintIds = new Set();
+const queuedPrintIds = new Set();
 
 function formatEuro(value) {
   return new Intl.NumberFormat("en-IE", {
@@ -34,6 +58,14 @@ function formatTime(value) {
     minute: "2-digit",
     day: "2-digit",
     month: "short"
+  }).format(new Date(value));
+}
+
+function formatClock(value) {
+  if (!value) return "";
+  return new Intl.DateTimeFormat("en-IE", {
+    hour: "2-digit",
+    minute: "2-digit"
   }).format(new Date(value));
 }
 
@@ -52,7 +84,7 @@ function setMessage(element, message, isError = false) {
 }
 
 function statusLabel(status) {
-  return status
+  return String(status || "")
     .split("-")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ");
@@ -61,6 +93,15 @@ function statusLabel(status) {
 function orderItemLabel(item) {
   if (!item.variant) return item.item_name;
   return `${item.item_name} - ${statusLabel(item.variant)}`;
+}
+
+function printStatusText(order) {
+  if (order.print_status === "printed") {
+    return order.printed_at ? `Printed ${formatClock(order.printed_at)}` : "Printed before tracking";
+  }
+  if (order.print_status === "failed") return `Print failed · ${order.print_attempts} attempt(s)`;
+  if (order.print_status === "printing") return "Printing in progress";
+  return "Pending print";
 }
 
 function showLogin(message = "", isError = false) {
@@ -75,6 +116,12 @@ function showDashboard() {
   staffDashboard.hidden = false;
   staffLogout.hidden = false;
   setMessage(loginMessage, "");
+  updatePrinterWarning();
+}
+
+function updatePrinterWarning() {
+  printerWarning.hidden = printerConnected;
+  receiptTestPrint.disabled = !printerConnected;
 }
 
 function renderOrders() {
@@ -106,6 +153,15 @@ function renderOrders() {
 
       <div class="order-footer">
         <p class="order-total">${formatEuro(order.total_price)}</p>
+        <div class="print-state-group">
+          <span class="print-status ${escapeHtml(order.print_status)}">${escapeHtml(printStatusText(order))}</span>
+          <button
+            class="secondary-button small-button reprint-button"
+            type="button"
+            data-reprint-id="${escapeHtml(order.id)}"
+            ${activePrintIds.has(order.id) || queuedPrintIds.has(order.id) ? "disabled" : ""}
+          >Reprint</button>
+        </div>
       </div>
 
       <div class="status-actions" aria-label="Update order #${escapeHtml(order.order_number)} status">
@@ -123,6 +179,100 @@ function renderOrders() {
   `).join("");
 }
 
+function currentReceiptSettings() {
+  return window.elimReceipt.normalizeSettings({
+    cafe_name: receiptFields.cafe_name.value,
+    header_text: receiptFields.header_text.value,
+    footer_text: receiptFields.footer_text.value,
+    separator_style: receiptFields.separator_style.value,
+    show_customer_name: receiptFields.show_customer_name.checked,
+    show_order_number: receiptFields.show_order_number.checked,
+    show_payment_method: receiptFields.show_payment_method.checked,
+    show_order_time: receiptFields.show_order_time.checked,
+    show_total: receiptFields.show_total.checked
+  });
+}
+
+function previewOrder() {
+  return orders[0] || {
+    order_number: 105,
+    customer_name: "Hwan",
+    created_at: new Date().toISOString(),
+    total_price: 8.5,
+    payment_method: "paypal",
+    order_items: [
+      { item_name: "Americano", variant: "hot", quantity: 1 },
+      { item_name: "Americano", variant: "ice", quantity: 2 },
+      { item_name: "Matcha Latte", variant: "hot", quantity: 1 }
+    ]
+  };
+}
+
+function renderReceiptPreview(settings = currentReceiptSettings()) {
+  receiptPreview.textContent = window.elimReceipt.buildOrderReceiptPreview(previewOrder(), settings);
+}
+
+function fillReceiptSettingsForm(settings) {
+  receiptFields.cafe_name.value = settings.cafe_name;
+  receiptFields.header_text.value = settings.header_text;
+  receiptFields.footer_text.value = settings.footer_text;
+  receiptFields.separator_style.value = settings.separator_style;
+  receiptFields.show_customer_name.checked = settings.show_customer_name;
+  receiptFields.show_order_number.checked = settings.show_order_number;
+  receiptFields.show_payment_method.checked = settings.show_payment_method;
+  receiptFields.show_order_time.checked = settings.show_order_time;
+  receiptFields.show_total.checked = settings.show_total;
+  renderReceiptPreview(settings);
+}
+
+async function loadReceiptSettings() {
+  const { data, error } = await window.elimSupabase
+    .from("receipt_settings")
+    .select("cafe_name, header_text, footer_text, show_customer_name, show_order_number, show_payment_method, show_order_time, show_total, separator_style")
+    .eq("id", 1)
+    .single();
+
+  if (error) {
+    console.error("Could not load receipt settings:", error);
+    receiptSettingsLoaded = false;
+    setMessage(receiptSettingsMessage, `Run the printer SQL migration first: ${error.message}`, true);
+    fillReceiptSettingsForm(receiptSettings);
+    return;
+  }
+
+  receiptSettings = window.elimReceipt.normalizeSettings(data);
+  receiptSettingsLoaded = true;
+  fillReceiptSettingsForm(receiptSettings);
+  setMessage(receiptSettingsMessage, "Receipt settings loaded.");
+}
+
+async function saveReceiptSettings(event) {
+  event.preventDefault();
+  const nextSettings = currentReceiptSettings();
+  const saveButton = document.querySelector("#receipt-save");
+  saveButton.disabled = true;
+  setMessage(receiptSettingsMessage, "Saving receipt settings...");
+
+  const { data, error } = await window.elimSupabase
+    .from("receipt_settings")
+    .update({ ...nextSettings, updated_at: new Date().toISOString() })
+    .eq("id", 1)
+    .select()
+    .single();
+
+  saveButton.disabled = false;
+  if (error) {
+    console.error("Could not save receipt settings:", error);
+    setMessage(receiptSettingsMessage, `Could not save settings: ${error.message}`, true);
+    return;
+  }
+
+  receiptSettings = window.elimReceipt.normalizeSettings(data);
+  receiptSettingsLoaded = true;
+  fillReceiptSettingsForm(receiptSettings);
+  setMessage(receiptSettingsMessage, "Receipt settings saved.");
+}
+
 async function isAuthorizedStaff(userId) {
   const { data, error } = await window.elimSupabase
     .from("staff_profiles")
@@ -135,35 +285,151 @@ async function isAuthorizedStaff(userId) {
     console.error("Could not verify staff access:", error);
     return false;
   }
-
   return data?.role === "staff";
 }
 
-async function loadOrders() {
+async function loadOrders({ processPrints = true } = {}) {
   refreshOrders.disabled = true;
   setMessage(staffMessage, "Loading orders...");
 
   const { data, error } = await window.elimSupabase
     .from("orders")
-    .select("id, order_number, customer_name, total_price, payment_method, status, created_at, order_items(item_name, variant, quantity, unit_price)")
+    .select("id, order_number, customer_name, total_price, payment_method, status, created_at, print_status, printed_at, print_attempts, printing_started_at, order_items(item_name, variant, quantity, unit_price)")
     .order("created_at", { ascending: false });
 
   refreshOrders.disabled = false;
-
   if (error) {
     console.error("Could not load orders:", error);
-    setMessage(staffMessage, `Could not load orders: ${error.message}`, true);
+    setMessage(staffMessage, `Could not load orders. Run the printer SQL migration first: ${error.message}`, true);
     return;
   }
 
   orders = data || [];
   setMessage(staffMessage, realtimeChannel ? "Live updates connected." : "");
   renderOrders();
+  renderReceiptPreview();
+  if (processPrints) queuePendingAutomaticPrints();
+}
+
+async function loadOrderForPrint(orderId) {
+  const { data, error } = await window.elimSupabase
+    .from("orders")
+    .select("id, order_number, customer_name, total_price, payment_method, created_at, order_items(item_name, variant, quantity, unit_price)")
+    .eq("id", orderId)
+    .single();
+
+  if (error) throw new Error(`Could not load order for printing: ${error.message}`);
+  if (!data.order_items?.length) throw new Error("This order has no items to print.");
+  return data;
+}
+
+async function claimPrint(orderId, force) {
+  const { data, error } = await window.elimSupabase.rpc("claim_order_print", {
+    p_order_id: orderId,
+    p_force: force
+  });
+  if (error) throw new Error(`Could not claim print job: ${error.message}`);
+  return Boolean(data?.claimed);
+}
+
+async function finishPrint(orderId, success) {
+  const { data, error } = await window.elimSupabase.rpc("finish_order_print", {
+    p_order_id: orderId,
+    p_success: success
+  });
+  if (error) throw new Error(`Could not save print result: ${error.message}`);
+  if (!data?.updated) throw new Error("The print job was no longer in the printing state.");
+}
+
+async function printOrder(orderId, { force = false, automatic = false } = {}) {
+  if (!printerConnected) {
+    if (!automatic) setMessage(staffMessage, "Connect the receipt printer before reprinting.", true);
+    return;
+  }
+  if (!receiptSettingsLoaded || activePrintIds.has(orderId)) return;
+
+  activePrintIds.add(orderId);
+  renderOrders();
+  let claimed = false;
+
+  try {
+    claimed = await claimPrint(orderId, force);
+    if (!claimed) {
+      if (!automatic) {
+        setMessage(staffMessage, "This order is already printed or another print job is in progress.", true);
+      }
+      return;
+    }
+
+    const order = await loadOrderForPrint(orderId);
+    setMessage(staffMessage, `${automatic ? "Automatically printing" : "Reprinting"} order #${order.order_number}...`);
+    const bytes = window.elimReceipt.buildOrderReceiptBytes(order, receiptSettings);
+    await window.elimPrinter.print(bytes);
+
+    try {
+      await finishPrint(orderId, true);
+    } catch (trackingError) {
+      console.error("Receipt printed but tracking update failed:", trackingError);
+      setMessage(
+        staffMessage,
+        `Order #${order.order_number} printed, but its database tracking update failed. Do not reprint until checked: ${trackingError.message}`,
+        true
+      );
+      return;
+    }
+
+    setMessage(staffMessage, `Order #${order.order_number} printed successfully.`);
+  } catch (error) {
+    console.error("Order print failed:", error);
+    if (claimed) {
+      try {
+        await finishPrint(orderId, false);
+      } catch (trackingError) {
+        console.error("Could not record failed print attempt:", trackingError);
+      }
+    }
+    setMessage(staffMessage, `Print failed: ${error.message}`, true);
+  } finally {
+    activePrintIds.delete(orderId);
+    await loadOrders({ processPrints: false });
+  }
+}
+
+function enqueuePrint(orderId, options) {
+  if (queuedPrintIds.has(orderId) || activePrintIds.has(orderId)) {
+    if (!options.automatic) setMessage(staffMessage, "This order is already queued for printing.");
+    return printQueue;
+  }
+
+  queuedPrintIds.add(orderId);
+  renderOrders();
+  printQueue = printQueue
+    .then(() => printOrder(orderId, options))
+    .catch((error) => {
+      console.error("Unexpected print queue error:", error);
+      setMessage(staffMessage, `Print queue error: ${error.message}`, true);
+    })
+    .finally(() => {
+      queuedPrintIds.delete(orderId);
+      renderOrders();
+    });
+  return printQueue;
+}
+
+function queuePendingAutomaticPrints() {
+  if (!printerConnected || !receiptSettingsLoaded) return;
+  orders
+    .filter((order) => (
+      order.print_status === "pending"
+      && !activePrintIds.has(order.id)
+      && !queuedPrintIds.has(order.id)
+    ))
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+    .forEach((order) => enqueuePrint(order.id, { automatic: true }));
 }
 
 async function updateOrderStatus(orderId, status) {
   if (!STATUSES.includes(status)) return;
-
   setMessage(staffMessage, "Updating order...");
 
   const { error } = await window.elimSupabase
@@ -184,11 +450,10 @@ async function updateOrderStatus(orderId, status) {
 
 function subscribeToOrders() {
   if (realtimeChannel) return;
-
   realtimeChannel = window.elimSupabase
     .channel("elim-cafe-staff-orders")
-    .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, loadOrders)
-    .on("postgres_changes", { event: "*", schema: "public", table: "order_items" }, loadOrders)
+    .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => loadOrders())
+    .on("postgres_changes", { event: "*", schema: "public", table: "order_items" }, () => loadOrders())
     .subscribe((status) => {
       if (status === "SUBSCRIBED") setMessage(staffMessage, "Live updates connected.");
       if (status === "CHANNEL_ERROR") {
@@ -207,6 +472,7 @@ async function handleSession(session) {
   if (!session?.user) {
     await stopRealtime();
     orders = [];
+    receiptSettingsLoaded = false;
     showLogin(pendingLoginError, Boolean(pendingLoginError));
     pendingLoginError = "";
     return;
@@ -221,6 +487,7 @@ async function handleSession(session) {
   }
 
   showDashboard();
+  await loadReceiptSettings();
   await loadOrders();
   subscribeToOrders();
 }
@@ -233,12 +500,7 @@ async function signInStaff(event) {
 
   staffSignIn.disabled = true;
   setMessage(loginMessage, "Signing in...");
-
-  const { data, error } = await window.elimSupabase.auth.signInWithPassword({
-    email,
-    password
-  });
-
+  const { data, error } = await window.elimSupabase.auth.signInWithPassword({ email, password });
   staffSignIn.disabled = false;
 
   if (error) {
@@ -246,10 +508,7 @@ async function signInStaff(event) {
     setMessage(loginMessage, `Could not sign in: ${error.message}`, true);
     return;
   }
-
-  if (!data.session) {
-    setMessage(loginMessage, "Could not sign in: Supabase did not return a session.", true);
-  }
+  if (!data.session) setMessage(loginMessage, "Could not sign in: Supabase did not return a session.", true);
 }
 
 async function initializeStaffApp() {
@@ -274,13 +533,45 @@ async function initializeStaffApp() {
 }
 
 ordersList.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-order-id]");
-  if (!button) return;
-  updateOrderStatus(button.dataset.orderId, button.dataset.status);
+  const reprintButton = event.target.closest("[data-reprint-id]");
+  if (reprintButton) {
+    enqueuePrint(reprintButton.dataset.reprintId, { force: true, automatic: false });
+    return;
+  }
+
+  const statusButton = event.target.closest("[data-order-id]");
+  if (statusButton) updateOrderStatus(statusButton.dataset.orderId, statusButton.dataset.status);
+});
+
+receiptSettingsForm.addEventListener("submit", saveReceiptSettings);
+receiptPreviewButton.addEventListener("click", () => {
+  renderReceiptPreview();
+  setMessage(receiptSettingsMessage, "Preview updated. Save settings to use them for live orders.");
+});
+receiptTestPrint.addEventListener("click", async () => {
+  if (!printerConnected) return;
+  receiptTestPrint.disabled = true;
+  try {
+    const settings = currentReceiptSettings();
+    renderReceiptPreview(settings);
+    await window.elimPrinter.print(window.elimReceipt.buildOrderReceiptBytes(previewOrder(), settings));
+    setMessage(receiptSettingsMessage, "Receipt preview printed.");
+  } catch (error) {
+    console.error("Receipt preview print failed:", error);
+    setMessage(receiptSettingsMessage, `Test print failed: ${error.message}`, true);
+  } finally {
+    receiptTestPrint.disabled = !printerConnected;
+  }
+});
+
+window.elimPrinter.onStatus((status) => {
+  printerConnected = status.state === "connected";
+  updatePrinterWarning();
+  if (printerConnected) queuePendingAutomaticPrints();
 });
 
 loginForm.addEventListener("submit", signInStaff);
-refreshOrders.addEventListener("click", loadOrders);
+refreshOrders.addEventListener("click", () => loadOrders());
 staffLogout.addEventListener("click", async () => {
   staffLogout.disabled = true;
   await stopRealtime();
@@ -294,8 +585,9 @@ staffLogout.addEventListener("click", async () => {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20261017");
+    navigator.serviceWorker.register("service-worker.js?v=20261018");
   });
 }
 
+fillReceiptSettingsForm(receiptSettings);
 initializeStaffApp();

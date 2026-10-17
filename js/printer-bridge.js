@@ -110,7 +110,7 @@
         throw new TypeError("Printer data must be a Uint8Array.");
       }
 
-      notifyStatus({ state: "printing", message: "Sending test receipt..." });
+      notifyStatus({ state: "printing", message: "Sending receipt to printer..." });
       return callNative("printBase64", { data: bytesToBase64(bytes) });
     },
 

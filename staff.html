@@ -7,13 +7,13 @@
     <meta name="description" content="Elim Café staff order dashboard.">
     <title>Elim Café Staff</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="css/styles.css?v=20261009">
+    <link rel="stylesheet" href="css/styles.css?v=20261018">
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script defer src="js/supabase-config.js"></script>
-    <script defer src="js/receipt.js"></script>
-    <script defer src="js/printer-bridge.js"></script>
-    <script defer src="js/printer-test.js"></script>
-    <script defer src="js/staff.js?v=20261017"></script>
+    <script defer src="js/receipt.js?v=20261018"></script>
+    <script defer src="js/printer-bridge.js?v=20261018"></script>
+    <script defer src="js/printer-test.js?v=20261018"></script>
+    <script defer src="js/staff.js?v=20261018"></script>
   </head>
   <body class="staff-page">
     <header class="app-header">
@@ -64,6 +64,61 @@
             <button id="printer-test-print" class="primary-button small-button" type="button" disabled>Test print</button>
           </div>
           <p id="printer-message" class="form-message" role="status"></p>
+        </section>
+
+        <div id="printer-warning" class="printer-warning" role="alert" hidden>
+          Automatic printing is paused. Connect the receipt printer to print pending orders.
+        </div>
+
+        <section class="receipt-settings" aria-labelledby="receipt-settings-heading">
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Receipt layout</p>
+              <h2 id="receipt-settings-heading">Receipt Settings</h2>
+            </div>
+          </div>
+
+          <form id="receipt-settings-form" class="receipt-settings-form">
+            <div class="receipt-settings-fields">
+              <label class="field">
+                <span>Café name</span>
+                <input id="receipt-cafe-name" type="text" maxlength="60" required>
+              </label>
+              <label class="field">
+                <span>Header text</span>
+                <textarea id="receipt-header-text" rows="2" maxlength="240"></textarea>
+              </label>
+              <label class="field">
+                <span>Footer text</span>
+                <textarea id="receipt-footer-text" rows="2" maxlength="240"></textarea>
+              </label>
+              <label class="field">
+                <span>Separator style</span>
+                <select id="receipt-separator-style">
+                  <option value="dash">Dashed</option>
+                  <option value="solid">Solid</option>
+                  <option value="double">Double</option>
+                </select>
+              </label>
+            </div>
+
+            <fieldset class="receipt-options">
+              <legend>Show on receipt</legend>
+              <label><input id="receipt-show-customer" type="checkbox"> Customer name</label>
+              <label><input id="receipt-show-order-number" type="checkbox"> Order number</label>
+              <label><input id="receipt-show-payment" type="checkbox"> Payment method</label>
+              <label><input id="receipt-show-time" type="checkbox"> Order time</label>
+              <label><input id="receipt-show-total" type="checkbox"> Total</label>
+            </fieldset>
+
+            <div class="receipt-settings-actions">
+              <button id="receipt-save" class="primary-button small-button" type="submit">Save settings</button>
+              <button id="receipt-preview-button" class="secondary-button small-button" type="button">Preview</button>
+              <button id="receipt-test-print" class="secondary-button small-button" type="button" disabled>Test print preview</button>
+            </div>
+          </form>
+          <p id="receipt-settings-message" class="form-message" role="status"></p>
+          <pre id="receipt-preview" class="receipt-preview" aria-label="Receipt preview"></pre>
         </section>
 
         <div class="section-heading">
