@@ -20,12 +20,31 @@ const receiptFields = {
   cafe_name: document.querySelector("#receipt-cafe-name"),
   header_text: document.querySelector("#receipt-header-text"),
   footer_text: document.querySelector("#receipt-footer-text"),
+  custom_text: document.querySelector("#receipt-custom-text"),
   separator_style: document.querySelector("#receipt-separator-style"),
   show_customer_name: document.querySelector("#receipt-show-customer"),
   show_order_number: document.querySelector("#receipt-show-order-number"),
   show_payment_method: document.querySelector("#receipt-show-payment"),
   show_order_time: document.querySelector("#receipt-show-time"),
-  show_total: document.querySelector("#receipt-show-total")
+  show_total: document.querySelector("#receipt-show-total"),
+  show_category: document.querySelector("#receipt-show-category"),
+  show_category_subtotal: document.querySelector("#receipt-show-category-subtotal"),
+  cafe_name_size: document.querySelector("#receipt-cafe-name-size"),
+  category_size: document.querySelector("#receipt-category-size"),
+  details_size: document.querySelector("#receipt-details-size"),
+  items_size: document.querySelector("#receipt-items-size"),
+  summary_size: document.querySelector("#receipt-summary-size"),
+  footer_size: document.querySelector("#receipt-footer-size"),
+  custom_text_size: document.querySelector("#receipt-custom-text-size"),
+  cafe_name_align: document.querySelector("#receipt-cafe-name-align"),
+  category_align: document.querySelector("#receipt-category-align"),
+  details_align: document.querySelector("#receipt-details-align"),
+  items_align: document.querySelector("#receipt-items-align"),
+  summary_align: document.querySelector("#receipt-summary-align"),
+  footer_align: document.querySelector("#receipt-footer-align"),
+  custom_text_align: document.querySelector("#receipt-custom-text-align"),
+  category_bold: document.querySelector("#receipt-category-bold"),
+  items_bold: document.querySelector("#receipt-items-bold")
 };
 
 const STATUSES = ["new", "preparing", "completed"];
@@ -184,12 +203,31 @@ function currentReceiptSettings() {
     cafe_name: receiptFields.cafe_name.value,
     header_text: receiptFields.header_text.value,
     footer_text: receiptFields.footer_text.value,
+    custom_text: receiptFields.custom_text.value,
     separator_style: receiptFields.separator_style.value,
     show_customer_name: receiptFields.show_customer_name.checked,
     show_order_number: receiptFields.show_order_number.checked,
     show_payment_method: receiptFields.show_payment_method.checked,
     show_order_time: receiptFields.show_order_time.checked,
-    show_total: receiptFields.show_total.checked
+    show_total: receiptFields.show_total.checked,
+    show_category: receiptFields.show_category.checked,
+    show_category_subtotal: receiptFields.show_category_subtotal.checked,
+    cafe_name_size: receiptFields.cafe_name_size.value,
+    category_size: receiptFields.category_size.value,
+    details_size: receiptFields.details_size.value,
+    items_size: receiptFields.items_size.value,
+    summary_size: receiptFields.summary_size.value,
+    footer_size: receiptFields.footer_size.value,
+    custom_text_size: receiptFields.custom_text_size.value,
+    cafe_name_align: receiptFields.cafe_name_align.value,
+    category_align: receiptFields.category_align.value,
+    details_align: receiptFields.details_align.value,
+    items_align: receiptFields.items_align.value,
+    summary_align: receiptFields.summary_align.value,
+    footer_align: receiptFields.footer_align.value,
+    custom_text_align: receiptFields.custom_text_align.value,
+    category_bold: receiptFields.category_bold.checked,
+    items_bold: receiptFields.items_bold.checked
   });
 }
 
@@ -201,34 +239,70 @@ function previewOrder() {
     total_price: 8.5,
     payment_method: "paypal",
     order_items: [
-      { item_name: "Americano", variant: "hot", quantity: 1 },
-      { item_name: "Americano", variant: "ice", quantity: 2 },
-      { item_name: "Matcha Latte", variant: "hot", quantity: 1 }
+      { category: "Coffee", item_name: "Americano", variant: "hot", quantity: 1, unit_price: 2 },
+      { category: "Coffee", item_name: "Americano", variant: "ice", quantity: 1, unit_price: 2.5 },
+      { category: "Latte", item_name: "Matcha Latte", variant: "hot", quantity: 1, unit_price: 3 },
+      { category: "Ade", item_name: "BLUE Lemon-Ade", variant: null, quantity: 1, unit_price: 1 }
     ]
   };
 }
 
 function renderReceiptPreview(settings = currentReceiptSettings()) {
-  receiptPreview.textContent = window.elimReceipt.buildOrderReceiptPreview(previewOrder(), settings);
+  const receipts = window.elimReceipt.buildCategoryReceipts(previewOrder(), settings);
+  receiptPreview.replaceChildren();
+
+  receipts.forEach((receipt) => {
+    const ticket = document.createElement("section");
+    ticket.className = "receipt-preview-ticket";
+    ticket.setAttribute("aria-label", `${receipt.category} receipt`);
+
+    receipt.rows.forEach((entry) => {
+      const line = document.createElement("div");
+      line.className = `receipt-preview-line size-${entry.size} align-${entry.align}`;
+      line.textContent = entry.text || " ";
+      line.style.fontWeight = entry.bold ? "800" : "400";
+      ticket.append(line);
+    });
+    receiptPreview.append(ticket);
+  });
 }
 
 function fillReceiptSettingsForm(settings) {
   receiptFields.cafe_name.value = settings.cafe_name;
   receiptFields.header_text.value = settings.header_text;
   receiptFields.footer_text.value = settings.footer_text;
+  receiptFields.custom_text.value = settings.custom_text;
   receiptFields.separator_style.value = settings.separator_style;
   receiptFields.show_customer_name.checked = settings.show_customer_name;
   receiptFields.show_order_number.checked = settings.show_order_number;
   receiptFields.show_payment_method.checked = settings.show_payment_method;
   receiptFields.show_order_time.checked = settings.show_order_time;
   receiptFields.show_total.checked = settings.show_total;
+  receiptFields.show_category.checked = settings.show_category;
+  receiptFields.show_category_subtotal.checked = settings.show_category_subtotal;
+  receiptFields.cafe_name_size.value = settings.cafe_name_size;
+  receiptFields.category_size.value = settings.category_size;
+  receiptFields.details_size.value = settings.details_size;
+  receiptFields.items_size.value = settings.items_size;
+  receiptFields.summary_size.value = settings.summary_size;
+  receiptFields.footer_size.value = settings.footer_size;
+  receiptFields.custom_text_size.value = settings.custom_text_size;
+  receiptFields.cafe_name_align.value = settings.cafe_name_align;
+  receiptFields.category_align.value = settings.category_align;
+  receiptFields.details_align.value = settings.details_align;
+  receiptFields.items_align.value = settings.items_align;
+  receiptFields.summary_align.value = settings.summary_align;
+  receiptFields.footer_align.value = settings.footer_align;
+  receiptFields.custom_text_align.value = settings.custom_text_align;
+  receiptFields.category_bold.checked = settings.category_bold;
+  receiptFields.items_bold.checked = settings.items_bold;
   renderReceiptPreview(settings);
 }
 
 async function loadReceiptSettings() {
   const { data, error } = await window.elimSupabase
     .from("receipt_settings")
-    .select("cafe_name, header_text, footer_text, show_customer_name, show_order_number, show_payment_method, show_order_time, show_total, separator_style")
+    .select("cafe_name, header_text, footer_text, custom_text, show_customer_name, show_order_number, show_payment_method, show_order_time, show_total, show_category, show_category_subtotal, separator_style, cafe_name_size, category_size, details_size, items_size, summary_size, footer_size, custom_text_size, cafe_name_align, category_align, details_align, items_align, summary_align, footer_align, custom_text_align, category_bold, items_bold")
     .eq("id", 1)
     .single();
 
@@ -294,7 +368,7 @@ async function loadOrders({ processPrints = true } = {}) {
 
   const { data, error } = await window.elimSupabase
     .from("orders")
-    .select("id, order_number, customer_name, total_price, payment_method, status, created_at, print_status, printed_at, print_attempts, printing_started_at, order_items(item_name, variant, quantity, unit_price)")
+    .select("id, order_number, customer_name, total_price, payment_method, status, created_at, print_status, printed_at, print_attempts, printing_started_at, order_items(category, item_name, variant, quantity, unit_price)")
     .order("created_at", { ascending: false });
 
   refreshOrders.disabled = false;
@@ -314,7 +388,7 @@ async function loadOrders({ processPrints = true } = {}) {
 async function loadOrderForPrint(orderId) {
   const { data, error } = await window.elimSupabase
     .from("orders")
-    .select("id, order_number, customer_name, total_price, payment_method, created_at, order_items(item_name, variant, quantity, unit_price)")
+    .select("id, order_number, customer_name, total_price, payment_method, created_at, order_items(category, item_name, variant, quantity, unit_price)")
     .eq("id", orderId)
     .single();
 
@@ -362,9 +436,16 @@ async function printOrder(orderId, { force = false, automatic = false } = {}) {
     }
 
     const order = await loadOrderForPrint(orderId);
-    setMessage(staffMessage, `${automatic ? "Automatically printing" : "Reprinting"} order #${order.order_number}...`);
-    const bytes = window.elimReceipt.buildOrderReceiptBytes(order, receiptSettings);
-    await window.elimPrinter.print(bytes);
+    const receipts = window.elimReceipt.buildCategoryReceipts(order, receiptSettings);
+    if (!receipts.length) throw new Error("This order has no category tickets to print.");
+
+    for (const [index, receipt] of receipts.entries()) {
+      setMessage(
+        staffMessage,
+        `${automatic ? "Automatically printing" : "Reprinting"} order #${order.order_number}: ${receipt.category} (${index + 1}/${receipts.length})...`
+      );
+      await window.elimPrinter.print(receipt.bytes);
+    }
 
     try {
       await finishPrint(orderId, true);
@@ -378,7 +459,7 @@ async function printOrder(orderId, { force = false, automatic = false } = {}) {
       return;
     }
 
-    setMessage(staffMessage, `Order #${order.order_number} printed successfully.`);
+    setMessage(staffMessage, `Order #${order.order_number} printed successfully as ${receipts.length} category ticket(s).`);
   } catch (error) {
     console.error("Order print failed:", error);
     if (claimed) {
@@ -544,6 +625,7 @@ ordersList.addEventListener("click", (event) => {
 });
 
 receiptSettingsForm.addEventListener("submit", saveReceiptSettings);
+receiptSettingsForm.addEventListener("input", () => renderReceiptPreview());
 receiptPreviewButton.addEventListener("click", () => {
   renderReceiptPreview();
   setMessage(receiptSettingsMessage, "Preview updated. Save settings to use them for live orders.");
@@ -554,8 +636,11 @@ receiptTestPrint.addEventListener("click", async () => {
   try {
     const settings = currentReceiptSettings();
     renderReceiptPreview(settings);
-    await window.elimPrinter.print(window.elimReceipt.buildOrderReceiptBytes(previewOrder(), settings));
-    setMessage(receiptSettingsMessage, "Receipt preview printed.");
+    const receipts = window.elimReceipt.buildCategoryReceipts(previewOrder(), settings);
+    for (const receipt of receipts) {
+      await window.elimPrinter.print(receipt.bytes);
+    }
+    setMessage(receiptSettingsMessage, `${receipts.length} category preview ticket(s) printed.`);
   } catch (error) {
     console.error("Receipt preview print failed:", error);
     setMessage(receiptSettingsMessage, `Test print failed: ${error.message}`, true);
@@ -585,7 +670,7 @@ staffLogout.addEventListener("click", async () => {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20261018");
+    navigator.serviceWorker.register("service-worker.js?v=20261018-2");
   });
 }
 

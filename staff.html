@@ -7,13 +7,13 @@
     <meta name="description" content="Elim Café staff order dashboard.">
     <title>Elim Café Staff</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="css/styles.css?v=20261018">
+    <link rel="stylesheet" href="css/styles.css?v=20261018-2">
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script defer src="js/supabase-config.js"></script>
-    <script defer src="js/receipt.js?v=20261018"></script>
+    <script defer src="js/receipt.js?v=20261018-2"></script>
     <script defer src="js/printer-bridge.js?v=20261018"></script>
     <script defer src="js/printer-test.js?v=20261018"></script>
-    <script defer src="js/staff.js?v=20261018"></script>
+    <script defer src="js/staff.js?v=20261018-2"></script>
   </head>
   <body class="staff-page">
     <header class="app-header">
@@ -93,6 +93,10 @@
                 <textarea id="receipt-footer-text" rows="2" maxlength="240"></textarea>
               </label>
               <label class="field">
+                <span>Additional text</span>
+                <textarea id="receipt-custom-text" rows="2" maxlength="240" placeholder="Optional message printed before the footer"></textarea>
+              </label>
+              <label class="field">
                 <span>Separator style</span>
                 <select id="receipt-separator-style">
                   <option value="dash">Dashed</option>
@@ -109,6 +113,57 @@
               <label><input id="receipt-show-payment" type="checkbox"> Payment method</label>
               <label><input id="receipt-show-time" type="checkbox"> Order time</label>
               <label><input id="receipt-show-total" type="checkbox"> Total</label>
+              <label><input id="receipt-show-category" type="checkbox"> Category heading</label>
+              <label><input id="receipt-show-category-subtotal" type="checkbox"> Category subtotal</label>
+            </fieldset>
+
+            <fieldset class="receipt-format-editor">
+              <legend>Text format</legend>
+              <div class="receipt-format-head" aria-hidden="true">
+                <span>Section</span><span>Size</span><span>Align</span><span>Bold</span>
+              </div>
+              <div class="receipt-format-row" data-format-row="cafe_name">
+                <strong>Café name</strong>
+                <select id="receipt-cafe-name-size" aria-label="Café name size"><option value="1">Normal</option><option value="2">Large</option><option value="3">Extra large</option></select>
+                <select id="receipt-cafe-name-align" aria-label="Café name alignment"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select>
+                <span aria-hidden="true">Fixed</span>
+              </div>
+              <div class="receipt-format-row">
+                <strong>Category</strong>
+                <select id="receipt-category-size" aria-label="Category size"><option value="1">Normal</option><option value="2">Large</option><option value="3">Extra large</option></select>
+                <select id="receipt-category-align" aria-label="Category alignment"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select>
+                <label class="compact-check"><input id="receipt-category-bold" type="checkbox"> Bold</label>
+              </div>
+              <div class="receipt-format-row">
+                <strong>Order details</strong>
+                <select id="receipt-details-size" aria-label="Order details size"><option value="1">Normal</option><option value="2">Large</option></select>
+                <select id="receipt-details-align" aria-label="Order details alignment"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select>
+                <span aria-hidden="true">-</span>
+              </div>
+              <div class="receipt-format-row">
+                <strong>Drink items</strong>
+                <select id="receipt-items-size" aria-label="Drink items size"><option value="1">Normal</option><option value="2">Large</option><option value="3">Extra large</option></select>
+                <select id="receipt-items-align" aria-label="Drink items alignment"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select>
+                <label class="compact-check"><input id="receipt-items-bold" type="checkbox"> Bold</label>
+              </div>
+              <div class="receipt-format-row">
+                <strong>Total/payment</strong>
+                <select id="receipt-summary-size" aria-label="Summary size"><option value="1">Normal</option><option value="2">Large</option></select>
+                <select id="receipt-summary-align" aria-label="Summary alignment"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select>
+                <span aria-hidden="true">-</span>
+              </div>
+              <div class="receipt-format-row">
+                <strong>Additional text</strong>
+                <select id="receipt-custom-text-size" aria-label="Additional text size"><option value="1">Normal</option><option value="2">Large</option></select>
+                <select id="receipt-custom-text-align" aria-label="Additional text alignment"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select>
+                <span aria-hidden="true">-</span>
+              </div>
+              <div class="receipt-format-row">
+                <strong>Footer</strong>
+                <select id="receipt-footer-size" aria-label="Footer size"><option value="1">Normal</option><option value="2">Large</option></select>
+                <select id="receipt-footer-align" aria-label="Footer alignment"><option value="left">Left</option><option value="center">Center</option><option value="right">Right</option></select>
+                <span aria-hidden="true">-</span>
+              </div>
             </fieldset>
 
             <div class="receipt-settings-actions">
@@ -118,7 +173,7 @@
             </div>
           </form>
           <p id="receipt-settings-message" class="form-message" role="status"></p>
-          <pre id="receipt-preview" class="receipt-preview" aria-label="Receipt preview"></pre>
+          <div id="receipt-preview" class="receipt-preview" aria-label="Receipt preview"></div>
         </section>
 
         <div class="section-heading">
