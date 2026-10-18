@@ -102,8 +102,17 @@ grant update (
   updated_at
 ) on public.receipt_settings to authenticated;
 
-create or replace function public.claim_order_print(
-  p_order_id uuid,
+-- Earlier test versions used UUID parameters, but some existing Elim Cafe
+-- projects use integer order IDs. Keep one unambiguous text-based RPC pair.
+drop function if exists public.claim_order_print(uuid, boolean);
+drop function if exists public.claim_order_print(bigint, boolean);
+drop function if exists public.claim_order_print(text, boolean);
+drop function if exists public.finish_order_print(uuid, boolean);
+drop function if exists public.finish_order_print(bigint, boolean);
+drop function if exists public.finish_order_print(text, boolean);
+
+create function public.claim_order_print(
+  p_order_id text,
   p_force boolean default false
 )
 returns jsonb
@@ -121,7 +130,7 @@ begin
   update public.orders
   set print_status = 'printing',
       printing_started_at = now()
-  where id = p_order_id
+  where id::text = p_order_id
     and (
       print_status = 'pending'
       or (
@@ -149,8 +158,8 @@ begin
 end;
 $$;
 
-create or replace function public.finish_order_print(
-  p_order_id uuid,
+create function public.finish_order_print(
+  p_order_id text,
   p_success boolean
 )
 returns jsonb
@@ -170,7 +179,7 @@ begin
       printed_at = case when p_success then now() else printed_at end,
       print_attempts = print_attempts + 1,
       printing_started_at = null
-  where id = p_order_id
+  where id::text = p_order_id
     and print_status = 'printing'
   returning * into v_order;
 
@@ -187,9 +196,9 @@ begin
 end;
 $$;
 
-revoke all on function public.claim_order_print(uuid, boolean) from public, anon, authenticated;
-revoke all on function public.finish_order_print(uuid, boolean) from public, anon, authenticated;
-grant execute on function public.claim_order_print(uuid, boolean) to authenticated;
-grant execute on function public.finish_order_print(uuid, boolean) to authenticated;
+revoke all on function public.claim_order_print(text, boolean) from public, anon, authenticated;
+revoke all on function public.finish_order_print(text, boolean) from public, anon, authenticated;
+grant execute on function public.claim_order_print(text, boolean) to authenticated;
+grant execute on function public.finish_order_print(text, boolean) to authenticated;
 
 commit;
