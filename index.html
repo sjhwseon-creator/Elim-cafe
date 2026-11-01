@@ -11,13 +11,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&amp;family=Nunito:wght@500;600;700;800;900&amp;display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/styles.css?v=20261009-2">
+    <link rel="stylesheet" href="css/styles.css?v=20261025">
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script defer src="js/supabase-config.js"></script>
+    <script defer src="js/supabase-config.js?v=20261025"></script>
     <script defer src="js/menu.js?v=20261009"></script>
     <script defer src="js/payment-config.js"></script>
-    <script defer src="js/i18n.js?v=20261009-2"></script>
-    <script defer src="js/customer.js?v=20261009-2"></script>
+    <script defer src="js/i18n.js?v=20261025"></script>
+    <script defer src="js/customer.js?v=20261025"></script>
   </head>
   <body class="customer-page">
     <header class="app-header customer-header">
@@ -32,6 +32,16 @@
           <button type="button" data-language="en" aria-pressed="false">EN</button>
           <button type="button" data-language="ko" aria-pressed="false">KO</button>
           <button type="button" data-language="zh" aria-pressed="false">中文</button>
+        </div>
+        <div class="customer-account-widget">
+          <button id="customer-account-open" class="account-button" type="button" data-i18n="auth.account">Konto</button>
+          <div id="customer-account-summary" class="customer-account-summary" hidden>
+            <div>
+              <strong id="customer-account-greeting"></strong>
+              <span><span data-i18n="auth.balance">Elim-Guthaben</span>: <strong id="customer-account-balance">€0.00</strong></span>
+            </div>
+            <button id="customer-sign-out" class="account-link-button" type="button" data-i18n="auth.signOut">Abmelden</button>
+          </div>
         </div>
         <p class="header-note" aria-hidden="true"><span data-i18n="header.note">Ein bisschen Freude<br>in jeder Tasse</span> <span>♥</span></p>
       </div>
@@ -101,6 +111,52 @@
         <p id="form-message" class="form-message" role="status"></p>
       </aside>
     </main>
+
+    <section id="customer-auth-overlay" class="auth-overlay" hidden aria-labelledby="customer-auth-title">
+      <div class="auth-card" role="dialog" aria-modal="true">
+        <div class="auth-card-heading">
+          <div>
+            <p class="eyebrow">Elim Café</p>
+            <h2 id="customer-auth-title" data-i18n="auth.title">Kundenkonto</h2>
+          </div>
+          <button id="customer-auth-close" class="icon-close-button" type="button" aria-label="Schließen" data-i18n-aria-label="auth.close">×</button>
+        </div>
+
+        <div class="auth-mode-switch" role="tablist" aria-label="Kontoaktion" data-i18n-aria-label="auth.mode">
+          <button type="button" role="tab" data-auth-mode="signin" aria-selected="true" data-i18n="auth.signIn">Anmelden</button>
+          <button type="button" role="tab" data-auth-mode="signup" aria-selected="false" data-i18n="auth.signUp">Registrieren</button>
+        </div>
+
+        <form id="customer-sign-in-form" class="customer-auth-form">
+          <label class="field">
+            <span data-i18n="auth.email">E-Mail</span>
+            <input id="customer-sign-in-email" type="email" autocomplete="email" required data-i18n-placeholder="auth.emailPlaceholder" placeholder="E-Mail-Adresse">
+          </label>
+          <label class="field">
+            <span data-i18n="auth.password">Passwort</span>
+            <input id="customer-sign-in-password" type="password" autocomplete="current-password" minlength="6" required data-i18n-placeholder="auth.passwordPlaceholder" placeholder="Passwort">
+          </label>
+          <button class="primary-button" type="submit" data-i18n="auth.signIn">Anmelden</button>
+        </form>
+
+        <form id="customer-sign-up-form" class="customer-auth-form" hidden>
+          <label class="field">
+            <span data-i18n="auth.name">Name</span>
+            <input id="customer-sign-up-name" type="text" autocomplete="name" maxlength="100" required data-i18n-placeholder="auth.namePlaceholder" placeholder="Name">
+          </label>
+          <label class="field">
+            <span data-i18n="auth.email">E-Mail</span>
+            <input id="customer-sign-up-email" type="email" autocomplete="email" required data-i18n-placeholder="auth.emailPlaceholder" placeholder="E-Mail-Adresse">
+          </label>
+          <label class="field">
+            <span data-i18n="auth.password">Passwort</span>
+            <input id="customer-sign-up-password" type="password" autocomplete="new-password" minlength="6" required data-i18n-placeholder="auth.passwordPlaceholder" placeholder="Passwort">
+          </label>
+          <button class="primary-button" type="submit" data-i18n="auth.createAccount">Konto erstellen</button>
+        </form>
+        <p id="customer-auth-message" class="form-message" role="status"></p>
+      </div>
+    </section>
 
     <section id="confirmation-screen" class="confirmation-screen" hidden aria-live="polite">
       <div class="confirmation-card">

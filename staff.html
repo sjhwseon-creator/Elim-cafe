@@ -7,13 +7,13 @@
     <meta name="description" content="Elim Café staff order dashboard.">
     <title>Elim Café Staff</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="css/styles.css?v=20261018-2">
+    <link rel="stylesheet" href="css/styles.css?v=20261025">
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script defer src="js/supabase-config.js"></script>
+    <script defer src="js/supabase-config.js?v=20261025"></script>
     <script defer src="js/receipt.js?v=20261018-2"></script>
     <script defer src="js/printer-bridge.js?v=20261018"></script>
     <script defer src="js/printer-test.js?v=20261018"></script>
-    <script defer src="js/staff.js?v=20261018-2"></script>
+    <script defer src="js/staff.js?v=20261025"></script>
   </head>
   <body class="staff-page">
     <header class="app-header">
@@ -47,6 +47,12 @@
       </section>
 
       <section id="staff-dashboard" class="panel dashboard-panel" aria-labelledby="orders-heading" hidden>
+        <nav class="staff-tabs" aria-label="Staff dashboard sections">
+          <button type="button" data-staff-view="orders" aria-pressed="true">Orders</button>
+          <button type="button" data-staff-view="customers" aria-pressed="false">Customers</button>
+        </nav>
+
+        <div id="staff-orders-view">
         <section class="printer-panel" aria-labelledby="printer-heading">
           <div class="printer-status-row">
             <div>
@@ -187,6 +193,64 @@
         <div id="orders-list" class="orders-list empty-state">
           Waiting for orders...
         </div>
+        </div>
+
+        <section id="staff-customers-view" class="staff-customers-view" aria-labelledby="customers-heading" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow">Prepaid accounts</p>
+              <h2 id="customers-heading">Customers</h2>
+            </div>
+            <button id="refresh-customers" class="secondary-button small-button" type="button">Refresh</button>
+          </div>
+
+          <label class="field customer-search-field">
+            <span>Search by name or email</span>
+            <input id="customer-search" type="search" autocomplete="off" placeholder="Start typing a name or email">
+          </label>
+          <p id="customers-message" class="form-message" role="status"></p>
+
+          <div class="customer-management-grid">
+            <div id="staff-customer-list" class="staff-customer-list empty-state">No customers yet.</div>
+
+            <section id="customer-wallet-detail" class="customer-wallet-detail" hidden aria-labelledby="selected-customer-name">
+              <div class="customer-wallet-heading">
+                <div>
+                  <p class="eyebrow">Selected customer</p>
+                  <h3 id="selected-customer-name"></h3>
+                  <p id="selected-customer-email" class="customer-detail-email"></p>
+                </div>
+                <p id="selected-customer-balance" class="customer-balance-large">€0.00</p>
+              </div>
+
+              <form id="wallet-topup-form" class="wallet-topup-form">
+                <fieldset>
+                  <legend>Add balance</legend>
+                  <div class="quick-topup-buttons">
+                    <button class="secondary-button small-button" type="button" data-topup-amount="10">+€10</button>
+                    <button class="secondary-button small-button" type="button" data-topup-amount="20">+€20</button>
+                    <button class="secondary-button small-button" type="button" data-topup-amount="50">+€50</button>
+                  </div>
+                  <label class="field">
+                    <span>Custom amount</span>
+                    <input id="wallet-topup-amount" type="number" inputmode="decimal" min="0.01" max="10000" step="0.01" placeholder="0.00" required>
+                  </label>
+                  <label class="field">
+                    <span>Optional note</span>
+                    <textarea id="wallet-topup-note" rows="2" maxlength="500" placeholder="Cash top-up, event credit, etc."></textarea>
+                  </label>
+                  <button id="wallet-topup-submit" class="primary-button small-button" type="submit">Add balance</button>
+                </fieldset>
+              </form>
+              <p id="wallet-message" class="form-message" role="status"></p>
+
+              <div class="transaction-heading">
+                <h3>Transaction history</h3>
+              </div>
+              <div id="wallet-transactions" class="wallet-transactions empty-state">No transactions yet.</div>
+            </section>
+          </div>
+        </section>
       </section>
     </main>
   </body>

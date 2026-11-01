@@ -11,12 +11,14 @@ const initialAuthCallback = {
     || initialAuthHash.get("error_description")
 };
 
-window.elimStaffAuthCallbackDetected = Boolean(
+window.elimAuthCallbackDetected = Boolean(
   initialAuthCallback.code
   || initialAuthCallback.accessToken
   || initialAuthCallback.error
   || initialAuthHash.get("type") === "magiclink"
 );
+// Backward-compatible alias for older deployed staff pages.
+window.elimStaffAuthCallbackDetected = window.elimAuthCallbackDetected;
 
 window.elimSupabaseConfigured =
   SUPABASE_URL.startsWith("https://") &&
@@ -59,7 +61,7 @@ window.elimCompleteAuthCallback = function completeAuthCallback() {
       result = await window.elimSupabase.auth.getSession();
     }
 
-    if (window.elimStaffAuthCallbackDetected) {
+    if (window.elimAuthCallbackDetected) {
       window.history.replaceState({}, document.title, `${window.location.origin}${window.location.pathname}`);
     }
 

@@ -1,37 +1,5 @@
 const cart = new Map();
 
-async function forwardStaffAuthCallback() {
-  if (!window.elimSupabase || !window.elimStaffAuthCallbackDetected) return;
-
-  let redirected = false;
-  const redirectToStaff = (session) => {
-    if (!session || redirected) return;
-    redirected = true;
-    window.location.replace(new URL("staff.html", window.location.href).href);
-  };
-
-  const { data: authListener } = window.elimSupabase.auth.onAuthStateChange((event, session) => {
-    if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
-      redirectToStaff(session);
-    }
-  });
-
-  const { data, error } = await window.elimCompleteAuthCallback();
-  if (error) {
-    console.error("Could not complete staff Magic Link redirect:", error);
-    authListener.subscription.unsubscribe();
-    return;
-  }
-
-  redirectToStaff(data.session);
-
-  if (!redirected) {
-    window.setTimeout(() => authListener.subscription.unsubscribe(), 10000);
-  }
-}
-
-forwardStaffAuthCallback();
-
 const menuGroups = document.querySelector("#menu-groups");
 const cartItems = document.querySelector("#cart-items");
 const cartCount = document.querySelector("#cart-count");
@@ -48,9 +16,28 @@ const confirmationScreen = document.querySelector("#confirmation-screen");
 const confirmationNumber = document.querySelector("#confirmation-number");
 const confirmationTotal = document.querySelector("#confirmation-total");
 const newOrder = document.querySelector("#new-order");
+const customerAccountOpen = document.querySelector("#customer-account-open");
+const customerAccountSummary = document.querySelector("#customer-account-summary");
+const customerAccountGreeting = document.querySelector("#customer-account-greeting");
+const customerAccountBalance = document.querySelector("#customer-account-balance");
+const customerSignOut = document.querySelector("#customer-sign-out");
+const customerAuthOverlay = document.querySelector("#customer-auth-overlay");
+const customerAuthClose = document.querySelector("#customer-auth-close");
+const customerAuthModeButtons = document.querySelectorAll("[data-auth-mode]");
+const customerSignInForm = document.querySelector("#customer-sign-in-form");
+const customerSignUpForm = document.querySelector("#customer-sign-up-form");
+const customerSignInEmail = document.querySelector("#customer-sign-in-email");
+const customerSignInPassword = document.querySelector("#customer-sign-in-password");
+const customerSignUpName = document.querySelector("#customer-sign-up-name");
+const customerSignUpEmail = document.querySelector("#customer-sign-up-email");
+const customerSignUpPassword = document.querySelector("#customer-sign-up-password");
+const customerAuthMessage = document.querySelector("#customer-auth-message");
 
 let currentMessage = { key: "", variables: {}, isError: false };
 let lastConfirmation = null;
+let currentCustomerProfile = null;
+let currentCustomerBalance = 0;
+let authMessage = { key: "", isError: false };
 
 const CATEGORY_PRESENTATION = {
   Coffee: {
@@ -95,6 +82,181 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function setAuthMessage(key = "", isError = false) {
+  authMessage = { key, isError };
+  customerAuthMessage.textContent = key ? t(key) : "";
+  customerAuthMessage.classList.toggle("error", isError);
+}
+
+function renderCustomerAccount() {
+  const signedIn = Boolean(currentCustomerProfile);
+  customerAccountOpen.hidden = signedIn;
+  customerAccountSummary.hidden = !signedIn;
+
+  if (!signedIn) return;
+  customerAccountGreeting.textContent = t("auth.hello", { name: currentCustomerProfile.display_name });
+  customerAccountBalance.textContent = formatEuro(currentCustomerBalance);
+}
+
+function setAuthMode(mode) {
+  const showSignUp = mode === "signup";
+  customerSignInForm.hidden = showSignUp;
+  customerSignUpForm.hidden = !showSignUp;
+  customerAuthModeButtons.forEach((button) => {
+    button.setAttribute("aria-selected", String(button.dataset.authMode === mode));
+  });
+  setAuthMessage();
+}
+
+function openCustomerAuth() {
+  setAuthMode("signin");
+  customerAuthOverlay.hidden = false;
+  customerSignInEmail.focus();
+}
+
+function closeCustomerAuth() {
+  customerAuthOverlay.hidden = true;
+  setAuthMessage();
+}
+
+async function loadCustomerAccount(session) {
+  if (!session?.user) {
+    currentCustomerProfile = null;
+    currentCustomerBalance = 0;
+    renderCustomerAccount();
+    return;
+  }
+
+  const [profileResult, walletResult] = await Promise.all([
+    window.elimSupabase
+      .from("customer_profiles")
+      .select("user_id, display_name, email, active")
+      .eq("user_id", session.user.id)
+      .maybeSingle(),
+    window.elimSupabase
+      .from("wallet_accounts")
+      .select("balance")
+      .eq("user_id", session.user.id)
+      .maybeSingle()
+  ]);
+
+  if (profileResult.error || walletResult.error) {
+    console.error("Could not load customer account:", profileResult.error || walletResult.error);
+    currentCustomerProfile = null;
+    currentCustomerBalance = 0;
+    renderCustomerAccount();
+    setAuthMessage("auth.profileFailed", true);
+    return;
+  }
+
+  if (!profileResult.data?.active) {
+    currentCustomerProfile = null;
+    currentCustomerBalance = 0;
+    renderCustomerAccount();
+    return;
+  }
+
+  currentCustomerProfile = profileResult.data;
+  currentCustomerBalance = Number(walletResult.data?.balance || 0);
+  if (!customerName.value.trim()) customerName.value = currentCustomerProfile.display_name;
+  renderCustomerAccount();
+  closeCustomerAuth();
+}
+
+async function signInCustomer(event) {
+  event.preventDefault();
+  const submitButton = customerSignInForm.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
+  setAuthMessage("auth.signingIn");
+
+  const { data, error } = await window.elimSupabase.auth.signInWithPassword({
+    email: customerSignInEmail.value.trim(),
+    password: customerSignInPassword.value
+  });
+  submitButton.disabled = false;
+
+  if (error || !data.session) {
+    console.error("Customer sign-in failed:", error || data);
+    setAuthMessage("auth.signInFailed", true);
+    return;
+  }
+
+  customerSignInPassword.value = "";
+  await loadCustomerAccount(data.session);
+}
+
+async function signUpCustomer(event) {
+  event.preventDefault();
+  const submitButton = customerSignUpForm.querySelector('button[type="submit"]');
+  submitButton.disabled = true;
+  setAuthMessage("auth.creating");
+
+  const name = customerSignUpName.value.trim();
+  const { data, error } = await window.elimSupabase.auth.signUp({
+    email: customerSignUpEmail.value.trim(),
+    password: customerSignUpPassword.value,
+    options: {
+      emailRedirectTo: new URL("index.html", window.location.href).href,
+      data: {
+        display_name: name,
+        account_type: "customer"
+      }
+    }
+  });
+  submitButton.disabled = false;
+
+  if (error) {
+    console.error("Customer sign-up failed:", error);
+    setAuthMessage("auth.signUpFailed", true);
+    return;
+  }
+
+  customerSignUpPassword.value = "";
+  if (data.session) {
+    await loadCustomerAccount(data.session);
+  } else {
+    setAuthMessage("auth.checkEmail");
+  }
+}
+
+async function signOutCustomer() {
+  customerSignOut.disabled = true;
+  const { error } = await window.elimSupabase.auth.signOut();
+  customerSignOut.disabled = false;
+  if (error) {
+    console.error("Customer sign-out failed:", error);
+    return;
+  }
+  currentCustomerProfile = null;
+  currentCustomerBalance = 0;
+  renderCustomerAccount();
+}
+
+async function initializeCustomerAuth() {
+  if (!window.elimSupabaseConfigured || !window.elimSupabase) return;
+
+  if (window.elimAuthCallbackDetected) {
+    const { error } = await window.elimCompleteAuthCallback();
+    if (error) {
+      console.error("Could not complete customer email confirmation:", error);
+      openCustomerAuth();
+      setAuthMessage("auth.callbackFailed", true);
+    }
+  }
+
+  const { data, error } = await window.elimSupabase.auth.getSession();
+  if (error) {
+    console.error("Could not restore customer session:", error);
+  } else {
+    await loadCustomerAccount(data.session);
+  }
+
+  window.elimSupabase.auth.onAuthStateChange((event, session) => {
+    if (event === "INITIAL_SESSION") return;
+    window.setTimeout(() => loadCustomerAccount(session), 0);
+  });
 }
 
 function getMenuItem(id) {
@@ -460,7 +622,7 @@ async function submitOrder() {
   confirmationScreen.hidden = false;
 
   cart.clear();
-  customerName.value = "";
+  customerName.value = currentCustomerProfile?.display_name || "";
   paymentMethodInputs.forEach((input) => {
     input.checked = false;
   });
@@ -529,6 +691,20 @@ paymentMethodInputs.forEach((input) => {
 reviewOrder.addEventListener("click", renderSummary);
 placeOrder.addEventListener("click", submitOrder);
 clearCart.addEventListener("click", resetCart);
+customerAccountOpen.addEventListener("click", openCustomerAuth);
+customerAuthClose.addEventListener("click", closeCustomerAuth);
+customerSignInForm.addEventListener("submit", signInCustomer);
+customerSignUpForm.addEventListener("submit", signUpCustomer);
+customerSignOut.addEventListener("click", signOutCustomer);
+customerAuthModeButtons.forEach((button) => {
+  button.addEventListener("click", () => setAuthMode(button.dataset.authMode));
+});
+customerAuthOverlay.addEventListener("click", (event) => {
+  if (event.target === customerAuthOverlay) closeCustomerAuth();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !customerAuthOverlay.hidden) closeCustomerAuth();
+});
 newOrder.addEventListener("click", () => {
   confirmationScreen.hidden = true;
 });
@@ -541,6 +717,8 @@ document.addEventListener("elim:languagechange", () => {
   renderPaymentInstructions();
   if (!orderSummary.hidden) renderSummary();
   renderConfirmation();
+  renderCustomerAccount();
+  customerAuthMessage.textContent = authMessage.key ? t(authMessage.key) : "";
 
   currentMessage = preservedMessage;
   refreshMessage();
@@ -548,9 +726,11 @@ document.addEventListener("elim:languagechange", () => {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20261017");
+    navigator.serviceWorker.register("service-worker.js?v=20261025");
   });
 }
 
 renderMenu();
 renderCart();
+renderCustomerAccount();
+initializeCustomerAuth();

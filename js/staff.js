@@ -15,6 +15,23 @@ const receiptSettingsMessage = document.querySelector("#receipt-settings-message
 const receiptPreview = document.querySelector("#receipt-preview");
 const receiptPreviewButton = document.querySelector("#receipt-preview-button");
 const receiptTestPrint = document.querySelector("#receipt-test-print");
+const staffViewButtons = document.querySelectorAll("[data-staff-view]");
+const staffOrdersView = document.querySelector("#staff-orders-view");
+const staffCustomersView = document.querySelector("#staff-customers-view");
+const refreshCustomers = document.querySelector("#refresh-customers");
+const customerSearch = document.querySelector("#customer-search");
+const customersMessage = document.querySelector("#customers-message");
+const staffCustomerList = document.querySelector("#staff-customer-list");
+const customerWalletDetail = document.querySelector("#customer-wallet-detail");
+const selectedCustomerName = document.querySelector("#selected-customer-name");
+const selectedCustomerEmail = document.querySelector("#selected-customer-email");
+const selectedCustomerBalance = document.querySelector("#selected-customer-balance");
+const walletTopupForm = document.querySelector("#wallet-topup-form");
+const walletTopupAmount = document.querySelector("#wallet-topup-amount");
+const walletTopupNote = document.querySelector("#wallet-topup-note");
+const walletTopupSubmit = document.querySelector("#wallet-topup-submit");
+const walletMessage = document.querySelector("#wallet-message");
+const walletTransactions = document.querySelector("#wallet-transactions");
 
 const receiptFields = {
   cafe_name: document.querySelector("#receipt-cafe-name"),
@@ -61,6 +78,8 @@ let receiptSettings = { ...window.elimReceipt.defaultSettings };
 let receiptSettingsLoaded = false;
 let printerConnected = false;
 let printQueue = Promise.resolve();
+let customers = [];
+let selectedCustomerId = null;
 const activePrintIds = new Set();
 const queuedPrintIds = new Set();
 
@@ -196,6 +215,190 @@ function renderOrders() {
       </div>
     </article>
   `).join("");
+}
+
+function setStaffView(view) {
+  const showCustomers = view === "customers";
+  staffOrdersView.hidden = showCustomers;
+  staffCustomersView.hidden = !showCustomers;
+  staffViewButtons.forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.staffView === view));
+  });
+  if (showCustomers) loadCustomers();
+}
+
+function filteredCustomers() {
+  const query = customerSearch.value.trim().toLowerCase();
+  if (!query) return customers;
+  return customers.filter((customer) => (
+    customer.display_name.toLowerCase().includes(query)
+    || customer.email.toLowerCase().includes(query)
+  ));
+}
+
+function renderCustomerList() {
+  const visibleCustomers = filteredCustomers();
+  if (!visibleCustomers.length) {
+    staffCustomerList.className = "staff-customer-list empty-state";
+    staffCustomerList.textContent = customers.length ? "No matching customers." : "No customers yet.";
+    return;
+  }
+
+  staffCustomerList.className = "staff-customer-list";
+  staffCustomerList.innerHTML = visibleCustomers.map((customer) => `
+    <button
+      class="staff-customer-row"
+      type="button"
+      data-customer-id="${escapeHtml(customer.user_id)}"
+      aria-pressed="${customer.user_id === selectedCustomerId}"
+    >
+      <span>
+        <strong>${escapeHtml(customer.display_name)}</strong>
+        <small>${escapeHtml(customer.email)}</small>
+      </span>
+      <strong>${formatEuro(customer.balance)}</strong>
+    </button>
+  `).join("");
+}
+
+function selectedCustomer() {
+  return customers.find((customer) => customer.user_id === selectedCustomerId) || null;
+}
+
+function renderSelectedCustomer() {
+  const customer = selectedCustomer();
+  customerWalletDetail.hidden = !customer;
+  if (!customer) return;
+
+  selectedCustomerName.textContent = customer.display_name;
+  selectedCustomerEmail.textContent = customer.email;
+  selectedCustomerBalance.textContent = formatEuro(customer.balance);
+}
+
+async function loadCustomers() {
+  refreshCustomers.disabled = true;
+  setMessage(customersMessage, "Loading customers...");
+
+  const [profilesResult, walletsResult] = await Promise.all([
+    window.elimSupabase
+      .from("customer_profiles")
+      .select("user_id, display_name, email, active, created_at")
+      .order("display_name", { ascending: true }),
+    window.elimSupabase
+      .from("wallet_accounts")
+      .select("user_id, balance, updated_at")
+  ]);
+  refreshCustomers.disabled = false;
+
+  if (profilesResult.error || walletsResult.error) {
+    const error = profilesResult.error || walletsResult.error;
+    console.error("Could not load customers:", error);
+    setMessage(customersMessage, `Could not load customers. Run the customer wallet migration first: ${error.message}`, true);
+    return;
+  }
+
+  const balances = new Map((walletsResult.data || []).map((wallet) => [
+    wallet.user_id,
+    Number(wallet.balance || 0)
+  ]));
+  customers = (profilesResult.data || []).map((profile) => ({
+    ...profile,
+    balance: balances.get(profile.user_id) || 0
+  }));
+
+  if (selectedCustomerId && !customers.some((customer) => customer.user_id === selectedCustomerId)) {
+    selectedCustomerId = null;
+  }
+  setMessage(customersMessage, `${customers.length} customer account(s).`);
+  renderCustomerList();
+  renderSelectedCustomer();
+}
+
+async function loadWalletTransactions(customerId) {
+  walletTransactions.className = "wallet-transactions empty-state";
+  walletTransactions.textContent = "Loading transactions...";
+
+  const { data, error } = await window.elimSupabase
+    .from("wallet_transactions")
+    .select("id, type, amount, balance_after, note, created_at")
+    .eq("user_id", customerId)
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  if (error) {
+    console.error("Could not load wallet transactions:", error);
+    walletTransactions.textContent = `Could not load transactions: ${error.message}`;
+    return;
+  }
+  if (customerId !== selectedCustomerId) return;
+
+  if (!data?.length) {
+    walletTransactions.className = "wallet-transactions empty-state";
+    walletTransactions.textContent = "No transactions yet.";
+    return;
+  }
+
+  walletTransactions.className = "wallet-transactions";
+  walletTransactions.innerHTML = data.map((transaction) => {
+    const amount = Number(transaction.amount);
+    const amountClass = amount >= 0 ? "positive" : "negative";
+    const amountPrefix = amount > 0 ? "+" : "";
+    return `
+    <article class="wallet-transaction-row">
+      <div>
+        <strong>${escapeHtml(statusLabel(transaction.type))}</strong>
+        <span>${escapeHtml(formatTime(transaction.created_at))}${transaction.note ? ` · ${escapeHtml(transaction.note)}` : ""}</span>
+      </div>
+      <div>
+        <strong class="wallet-amount ${amountClass}">${amountPrefix}${formatEuro(amount)}</strong>
+        <span>Balance ${formatEuro(transaction.balance_after)}</span>
+      </div>
+    </article>
+  `;
+  }).join("");
+}
+
+async function selectCustomer(customerId) {
+  selectedCustomerId = customerId;
+  setMessage(walletMessage, "");
+  renderCustomerList();
+  renderSelectedCustomer();
+  await loadWalletTransactions(customerId);
+}
+
+async function addCustomerBalance(amount) {
+  const customer = selectedCustomer();
+  const numericAmount = Number(amount);
+  if (!customer || !Number.isFinite(numericAmount) || numericAmount <= 0 || numericAmount > 10000) {
+    setMessage(walletMessage, "Enter an amount greater than €0 and no more than €10,000.", true);
+    return;
+  }
+
+  walletTopupSubmit.disabled = true;
+  setMessage(walletMessage, `Adding ${formatEuro(numericAmount)} to ${customer.display_name}...`);
+  const { data, error } = await window.elimSupabase.rpc("staff_add_balance", {
+    p_customer_user_id: customer.user_id,
+    p_amount: numericAmount,
+    p_note: walletTopupNote.value.trim() || null
+  });
+  walletTopupSubmit.disabled = false;
+
+  if (error) {
+    console.error("Could not add customer balance:", error);
+    setMessage(walletMessage, `Could not add balance: ${error.message}`, true);
+    return;
+  }
+
+  const newBalance = Number(data?.balance || 0);
+  customers = customers.map((entry) => (
+    entry.user_id === customer.user_id ? { ...entry, balance: newBalance } : entry
+  ));
+  walletTopupAmount.value = "";
+  walletTopupNote.value = "";
+  setMessage(walletMessage, `Added ${formatEuro(numericAmount)}. New balance: ${formatEuro(newBalance)}.`);
+  renderCustomerList();
+  renderSelectedCustomer();
+  await loadWalletTransactions(customer.user_id);
 }
 
 function currentReceiptSettings() {
@@ -553,6 +756,8 @@ async function handleSession(session) {
   if (!session?.user) {
     await stopRealtime();
     orders = [];
+    customers = [];
+    selectedCustomerId = null;
     receiptSettingsLoaded = false;
     showLogin(pendingLoginError, Boolean(pendingLoginError));
     pendingLoginError = "";
@@ -624,6 +829,26 @@ ordersList.addEventListener("click", (event) => {
   if (statusButton) updateOrderStatus(statusButton.dataset.orderId, statusButton.dataset.status);
 });
 
+staffViewButtons.forEach((button) => {
+  button.addEventListener("click", () => setStaffView(button.dataset.staffView));
+});
+refreshCustomers.addEventListener("click", loadCustomers);
+customerSearch.addEventListener("input", renderCustomerList);
+staffCustomerList.addEventListener("click", (event) => {
+  const customerButton = event.target.closest("[data-customer-id]");
+  if (customerButton) selectCustomer(customerButton.dataset.customerId);
+});
+document.querySelectorAll("[data-topup-amount]").forEach((button) => {
+  button.addEventListener("click", () => {
+    walletTopupAmount.value = button.dataset.topupAmount;
+    walletTopupAmount.focus();
+  });
+});
+walletTopupForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  addCustomerBalance(walletTopupAmount.value);
+});
+
 receiptSettingsForm.addEventListener("submit", saveReceiptSettings);
 receiptSettingsForm.addEventListener("input", () => renderReceiptPreview());
 receiptPreviewButton.addEventListener("click", () => {
@@ -670,7 +895,7 @@ staffLogout.addEventListener("click", async () => {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20261018-2");
+    navigator.serviceWorker.register("service-worker.js?v=20261025");
   });
 }
 
