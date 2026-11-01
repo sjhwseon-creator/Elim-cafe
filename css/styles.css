@@ -245,7 +245,8 @@ button:disabled {
   font-weight: 800;
 }
 
-.field input {
+.field input,
+.field select {
   width: 100%;
   min-height: 52px;
   border: 1px solid var(--line);
@@ -254,6 +255,11 @@ button:disabled {
   background: #fff;
   color: var(--ink);
   font-size: 1.05rem;
+}
+
+.negative-balance {
+  color: var(--danger) !important;
+  font-weight: 900;
 }
 
 .payment-section {
@@ -539,6 +545,15 @@ button:disabled {
   box-shadow: inset 4px 0 var(--coffee);
 }
 
+.staff-customer-row.negative-balance-row {
+  border-color: #d99b91;
+  background: #fff7f5;
+}
+
+.staff-customer-row.negative-balance-row[aria-pressed="true"] {
+  box-shadow: inset 4px 0 var(--danger);
+}
+
 .staff-customer-row span {
   display: grid;
   gap: 4px;
@@ -584,6 +599,11 @@ button:disabled {
   font-weight: 900;
 }
 
+.customer-balance-filter-field {
+  max-width: 320px;
+  margin-bottom: 18px;
+}
+
 .wallet-topup-form fieldset {
   display: grid;
   grid-template-columns: minmax(160px, 0.7fr) minmax(220px, 1fr) auto;
@@ -613,6 +633,11 @@ button:disabled {
   grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
+  gap: 8px;
+}
+
+.wallet-action-buttons {
+  display: grid;
   gap: 8px;
 }
 
@@ -1165,6 +1190,25 @@ body.customer-page {
   border-radius: 8px;
   background: rgba(255, 253, 249, 0.94);
   color: var(--customer-brown-dark);
+}
+
+.wallet-icon {
+  color: #347348;
+  font-weight: 900;
+}
+
+.wallet-payment-option:has(input:checked) {
+  border-color: #5e7c58;
+  background: #edf4e9;
+}
+
+.wallet-balance-preview dd {
+  font-weight: 900;
+}
+
+.confirmation-balance {
+  font-size: 1.15rem;
+  font-weight: 900;
 }
 
 .customer-account-summary {

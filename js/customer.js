@@ -7,6 +7,7 @@ const cartTotal = document.querySelector("#cart-total");
 const customerName = document.querySelector("#customer-name");
 const paymentMethodInputs = document.querySelectorAll('input[name="payment-method"]');
 const paymentInstructions = document.querySelector("#payment-instructions");
+const walletPaymentOption = document.querySelector("#wallet-payment-option");
 const reviewOrder = document.querySelector("#review-order");
 const placeOrder = document.querySelector("#place-order");
 const clearCart = document.querySelector("#clear-cart");
@@ -15,6 +16,7 @@ const formMessage = document.querySelector("#form-message");
 const confirmationScreen = document.querySelector("#confirmation-screen");
 const confirmationNumber = document.querySelector("#confirmation-number");
 const confirmationTotal = document.querySelector("#confirmation-total");
+const confirmationBalance = document.querySelector("#confirmation-balance");
 const newOrder = document.querySelector("#new-order");
 const customerAccountOpen = document.querySelector("#customer-account-open");
 const customerAccountSummary = document.querySelector("#customer-account-summary");
@@ -75,6 +77,10 @@ function formatEuro(value) {
   }).format(value);
 }
 
+function setBalanceTone(element, value) {
+  element.classList.toggle("negative-balance", Number(value) < 0);
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -94,10 +100,21 @@ function renderCustomerAccount() {
   const signedIn = Boolean(currentCustomerProfile);
   customerAccountOpen.hidden = signedIn;
   customerAccountSummary.hidden = !signedIn;
+  walletPaymentOption.hidden = !signedIn;
 
-  if (!signedIn) return;
+  if (!signedIn) {
+    const walletInput = walletPaymentOption.querySelector("input");
+    if (walletInput.checked) {
+      walletInput.checked = false;
+      hideOrderActions();
+      renderPaymentInstructions();
+    }
+    return;
+  }
+
   customerAccountGreeting.textContent = t("auth.hello", { name: currentCustomerProfile.display_name });
   customerAccountBalance.textContent = formatEuro(currentCustomerBalance);
+  setBalanceTone(customerAccountBalance, currentCustomerBalance);
 }
 
 function setAuthMode(mode) {
@@ -374,6 +391,19 @@ function renderPaymentInstructions() {
     paymentInstructions.innerHTML = `<p>${escapeHtml(t("payment.cashInstruction"))}</p>`;
   }
 
+  if (method === "wallet") {
+    const orderTotal = getTotal();
+    const balanceAfter = currentCustomerBalance - orderTotal;
+    paymentInstructions.innerHTML = `
+      <p>${escapeHtml(t("payment.walletInstruction"))}</p>
+      <dl class="payment-details wallet-balance-preview">
+        <div><dt>${escapeHtml(t("payment.currentBalance"))}</dt><dd class="${currentCustomerBalance < 0 ? "negative-balance" : ""}">${formatEuro(currentCustomerBalance)}</dd></div>
+        <div><dt>${escapeHtml(t("payment.orderTotal"))}</dt><dd>${formatEuro(orderTotal)}</dd></div>
+        <div><dt>${escapeHtml(t("payment.balanceAfter"))}</dt><dd class="${balanceAfter < 0 ? "negative-balance" : ""}">${formatEuro(balanceAfter)}</dd></div>
+      </dl>
+    `;
+  }
+
   paymentInstructions.hidden = false;
 }
 
@@ -563,6 +593,14 @@ function renderConfirmation() {
   confirmationTotal.textContent = t("order.total", {
     total: formatEuro(lastConfirmation.totalPrice)
   });
+  const hasWalletBalance = Number.isFinite(lastConfirmation.newBalance);
+  confirmationBalance.hidden = !hasWalletBalance;
+  if (hasWalletBalance) {
+    confirmationBalance.textContent = t("confirmation.balance", {
+      balance: formatEuro(lastConfirmation.newBalance)
+    });
+    setBalanceTone(confirmationBalance, lastConfirmation.newBalance);
+  }
 }
 
 async function submitOrder() {
@@ -589,6 +627,11 @@ async function submitOrder() {
     return;
   }
 
+  if (paymentMethod === "wallet" && !currentCustomerProfile) {
+    setMessage("validation.walletSignIn", {}, true);
+    return;
+  }
+
   if (!window.elimSupabaseConfigured || !window.elimSupabase) {
     setMessage("error.serviceUnavailable", {}, true);
     return;
@@ -597,15 +640,21 @@ async function submitOrder() {
   placeOrder.disabled = true;
   setMessage("order.sending");
 
-  const { data: order, error } = await window.elimSupabase.rpc("create_order", {
-    p_customer_name: name,
-    p_payment_method: paymentMethod,
-    p_items: rows.map((item) => ({
-      item_id: item.id,
-      variant: item.variant,
-      quantity: item.quantity
-    }))
-  });
+  const orderItems = rows.map((item) => ({
+    item_id: item.id,
+    variant: item.variant,
+    quantity: item.quantity
+  }));
+  const { data: order, error } = paymentMethod === "wallet"
+    ? await window.elimSupabase.rpc("create_wallet_order", {
+        p_customer_name: name,
+        p_items: orderItems
+      })
+    : await window.elimSupabase.rpc("create_order", {
+        p_customer_name: name,
+        p_payment_method: paymentMethod,
+        p_items: orderItems
+      });
 
   if (error || !order?.order_number) {
     console.error("Supabase RPC error while creating order:", error || order);
@@ -616,8 +665,13 @@ async function submitOrder() {
 
   lastConfirmation = {
     orderNumber: order.order_number,
-    totalPrice: Number(order.total_price)
+    totalPrice: Number(order.total_price),
+    newBalance: paymentMethod === "wallet" ? Number(order.balance) : null
   };
+  if (paymentMethod === "wallet") {
+    currentCustomerBalance = Number(order.balance);
+    renderCustomerAccount();
+  }
   renderConfirmation();
   confirmationScreen.hidden = false;
 
@@ -726,7 +780,7 @@ document.addEventListener("elim:languagechange", () => {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20261025");
+    navigator.serviceWorker.register("service-worker.js?v=20261101");
   });
 }
 

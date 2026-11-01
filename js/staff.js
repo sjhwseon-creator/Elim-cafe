@@ -20,6 +20,7 @@ const staffOrdersView = document.querySelector("#staff-orders-view");
 const staffCustomersView = document.querySelector("#staff-customers-view");
 const refreshCustomers = document.querySelector("#refresh-customers");
 const customerSearch = document.querySelector("#customer-search");
+const customerBalanceFilter = document.querySelector("#customer-balance-filter");
 const customersMessage = document.querySelector("#customers-message");
 const staffCustomerList = document.querySelector("#staff-customer-list");
 const customerWalletDetail = document.querySelector("#customer-wallet-detail");
@@ -30,6 +31,7 @@ const walletTopupForm = document.querySelector("#wallet-topup-form");
 const walletTopupAmount = document.querySelector("#wallet-topup-amount");
 const walletTopupNote = document.querySelector("#wallet-topup-note");
 const walletTopupSubmit = document.querySelector("#wallet-topup-submit");
+const walletRefundSubmit = document.querySelector("#wallet-refund-submit");
 const walletMessage = document.querySelector("#wallet-message");
 const walletTransactions = document.querySelector("#wallet-transactions");
 
@@ -68,7 +70,8 @@ const STATUSES = ["new", "preparing", "completed"];
 const PAYMENT_LABELS = {
   paypal: "PayPal",
   sepa: "SEPA bank transfer",
-  cash: "Cash"
+  cash: "Cash",
+  wallet: "Elim Balance"
 };
 
 let orders = [];
@@ -229,11 +232,13 @@ function setStaffView(view) {
 
 function filteredCustomers() {
   const query = customerSearch.value.trim().toLowerCase();
-  if (!query) return customers;
-  return customers.filter((customer) => (
-    customer.display_name.toLowerCase().includes(query)
-    || customer.email.toLowerCase().includes(query)
-  ));
+  return customers.filter((customer) => {
+    const matchesQuery = !query
+      || customer.display_name.toLowerCase().includes(query)
+      || customer.email.toLowerCase().includes(query);
+    const matchesBalance = customerBalanceFilter.value !== "outstanding" || customer.balance < 0;
+    return matchesQuery && matchesBalance;
+  });
 }
 
 function renderCustomerList() {
@@ -247,7 +252,7 @@ function renderCustomerList() {
   staffCustomerList.className = "staff-customer-list";
   staffCustomerList.innerHTML = visibleCustomers.map((customer) => `
     <button
-      class="staff-customer-row"
+      class="staff-customer-row ${customer.balance < 0 ? "negative-balance-row" : ""}"
       type="button"
       data-customer-id="${escapeHtml(customer.user_id)}"
       aria-pressed="${customer.user_id === selectedCustomerId}"
@@ -256,7 +261,10 @@ function renderCustomerList() {
         <strong>${escapeHtml(customer.display_name)}</strong>
         <small>${escapeHtml(customer.email)}</small>
       </span>
-      <strong>${formatEuro(customer.balance)}</strong>
+      <span class="staff-customer-balance">
+        <strong class="${customer.balance < 0 ? "negative-balance" : ""}">${formatEuro(customer.balance)}</strong>
+        ${customer.balance < 0 ? "<small>Outstanding</small>" : ""}
+      </span>
     </button>
   `).join("");
 }
@@ -273,6 +281,7 @@ function renderSelectedCustomer() {
   selectedCustomerName.textContent = customer.display_name;
   selectedCustomerEmail.textContent = customer.email;
   selectedCustomerBalance.textContent = formatEuro(customer.balance);
+  selectedCustomerBalance.classList.toggle("negative-balance", customer.balance < 0);
 }
 
 async function loadCustomers() {
@@ -366,7 +375,7 @@ async function selectCustomer(customerId) {
   await loadWalletTransactions(customerId);
 }
 
-async function addCustomerBalance(amount) {
+async function changeCustomerBalance(amount, transactionType = "topup") {
   const customer = selectedCustomer();
   const numericAmount = Number(amount);
   if (!customer || !Number.isFinite(numericAmount) || numericAmount <= 0 || numericAmount > 10000) {
@@ -374,18 +383,24 @@ async function addCustomerBalance(amount) {
     return;
   }
 
+  const isRefund = transactionType === "refund";
   walletTopupSubmit.disabled = true;
-  setMessage(walletMessage, `Adding ${formatEuro(numericAmount)} to ${customer.display_name}...`);
-  const { data, error } = await window.elimSupabase.rpc("staff_add_balance", {
+  walletRefundSubmit.disabled = true;
+  setMessage(walletMessage, `${isRefund ? "Refunding" : "Adding"} ${formatEuro(numericAmount)} ${isRefund ? "to" : "for"} ${customer.display_name}...`);
+  const rpcName = isRefund ? "staff_refund_balance" : "staff_add_balance";
+  const rpcArguments = {
     p_customer_user_id: customer.user_id,
     p_amount: numericAmount,
     p_note: walletTopupNote.value.trim() || null
-  });
+  };
+  if (isRefund) rpcArguments.p_order_id = null;
+  const { data, error } = await window.elimSupabase.rpc(rpcName, rpcArguments);
   walletTopupSubmit.disabled = false;
+  walletRefundSubmit.disabled = false;
 
   if (error) {
     console.error("Could not add customer balance:", error);
-    setMessage(walletMessage, `Could not add balance: ${error.message}`, true);
+    setMessage(walletMessage, `Could not ${isRefund ? "record refund" : "add balance"}: ${error.message}`, true);
     return;
   }
 
@@ -395,7 +410,7 @@ async function addCustomerBalance(amount) {
   ));
   walletTopupAmount.value = "";
   walletTopupNote.value = "";
-  setMessage(walletMessage, `Added ${formatEuro(numericAmount)}. New balance: ${formatEuro(newBalance)}.`);
+  setMessage(walletMessage, `${isRefund ? "Refunded" : "Added"} ${formatEuro(numericAmount)}. New balance: ${formatEuro(newBalance)}.`);
   renderCustomerList();
   renderSelectedCustomer();
   await loadWalletTransactions(customer.user_id);
@@ -834,6 +849,7 @@ staffViewButtons.forEach((button) => {
 });
 refreshCustomers.addEventListener("click", loadCustomers);
 customerSearch.addEventListener("input", renderCustomerList);
+customerBalanceFilter.addEventListener("change", renderCustomerList);
 staffCustomerList.addEventListener("click", (event) => {
   const customerButton = event.target.closest("[data-customer-id]");
   if (customerButton) selectCustomer(customerButton.dataset.customerId);
@@ -846,7 +862,10 @@ document.querySelectorAll("[data-topup-amount]").forEach((button) => {
 });
 walletTopupForm.addEventListener("submit", (event) => {
   event.preventDefault();
-  addCustomerBalance(walletTopupAmount.value);
+  changeCustomerBalance(walletTopupAmount.value, "topup");
+});
+walletRefundSubmit.addEventListener("click", () => {
+  changeCustomerBalance(walletTopupAmount.value, "refund");
 });
 
 receiptSettingsForm.addEventListener("submit", saveReceiptSettings);
@@ -895,7 +914,7 @@ staffLogout.addEventListener("click", async () => {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20261025");
+    navigator.serviceWorker.register("service-worker.js?v=20261101");
   });
 }
 

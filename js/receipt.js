@@ -3,7 +3,7 @@
   const GS = 0x1d;
   const RECEIPT_COLUMNS = 32;
   const CATEGORY_ORDER = ["Coffee", "Latte", "Ade", "Other"];
-  const PAYMENT_LABELS = { paypal: "PayPal", sepa: "SEPA bank transfer", cash: "Cash" };
+  const PAYMENT_LABELS = { paypal: "PayPal", sepa: "SEPA bank transfer", cash: "Cash", wallet: "Elim Balance" };
 
   const DEFAULT_SETTINGS = Object.freeze({
     cafe_name: "ELIM CAFE",

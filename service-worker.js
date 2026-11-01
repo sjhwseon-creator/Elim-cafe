@@ -1,17 +1,17 @@
-const CACHE_NAME = "elim-cafe-wallet-v10";
+const CACHE_NAME = "elim-cafe-wallet-v11";
 const APP_SHELL = [
   "./",
   "index.html",
   "staff.html",
-  "css/styles.css?v=20261025",
+  "css/styles.css?v=20261101",
   "js/supabase-config.js?v=20261025",
   "js/menu.js?v=20261009",
-  "js/i18n.js?v=20261025",
-  "js/customer.js?v=20261025",
-  "js/receipt.js?v=20261018-2",
+  "js/i18n.js?v=20261101",
+  "js/customer.js?v=20261101",
+  "js/receipt.js?v=20261101",
   "js/printer-bridge.js?v=20261018",
   "js/printer-test.js?v=20261018",
-  "js/staff.js?v=20261025",
+  "js/staff.js?v=20261101",
   "manifest.json",
   "icons/elim-icon.svg",
   "icons/elim-maskable.svg"

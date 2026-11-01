@@ -11,13 +11,13 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&amp;family=Nunito:wght@500;600;700;800;900&amp;display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/styles.css?v=20261025">
+    <link rel="stylesheet" href="css/styles.css?v=20261101">
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script defer src="js/supabase-config.js?v=20261025"></script>
     <script defer src="js/menu.js?v=20261009"></script>
     <script defer src="js/payment-config.js"></script>
-    <script defer src="js/i18n.js?v=20261025"></script>
-    <script defer src="js/customer.js?v=20261025"></script>
+    <script defer src="js/i18n.js?v=20261101"></script>
+    <script defer src="js/customer.js?v=20261101"></script>
   </head>
   <body class="customer-page">
     <header class="app-header customer-header">
@@ -99,6 +99,11 @@
               <span class="payment-icon" aria-hidden="true">▣</span>
               <span data-i18n="payment.cash">Barzahlung</span>
             </label>
+            <label id="wallet-payment-option" class="payment-option wallet-payment-option" hidden>
+              <input type="radio" name="payment-method" value="wallet">
+              <span class="payment-icon wallet-icon" aria-hidden="true">€</span>
+              <span data-i18n="payment.wallet">Elim-Guthaben</span>
+            </label>
           </div>
           <div id="payment-instructions" class="payment-instructions" hidden></div>
         </fieldset>
@@ -164,6 +169,7 @@
         <h2 data-i18n="confirmation.received">Bestellung erhalten!</h2>
         <p id="confirmation-number" class="order-number"></p>
         <p id="confirmation-total" class="confirmation-total"></p>
+        <p id="confirmation-balance" class="confirmation-balance" hidden></p>
         <p data-i18n="confirmation.wait">Bitte warte auf deine Bestellung.</p>
         <button id="new-order" class="secondary-button" type="button" data-i18n="confirmation.newOrder">Neue Bestellung starten</button>
       </div>

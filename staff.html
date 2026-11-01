@@ -7,13 +7,13 @@
     <meta name="description" content="Elim Café staff order dashboard.">
     <title>Elim Café Staff</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="css/styles.css?v=20261025">
+    <link rel="stylesheet" href="css/styles.css?v=20261101">
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script defer src="js/supabase-config.js?v=20261025"></script>
-    <script defer src="js/receipt.js?v=20261018-2"></script>
+    <script defer src="js/receipt.js?v=20261101"></script>
     <script defer src="js/printer-bridge.js?v=20261018"></script>
     <script defer src="js/printer-test.js?v=20261018"></script>
-    <script defer src="js/staff.js?v=20261025"></script>
+    <script defer src="js/staff.js?v=20261101"></script>
   </head>
   <body class="staff-page">
     <header class="app-header">
@@ -208,6 +208,13 @@
             <span>Search by name or email</span>
             <input id="customer-search" type="search" autocomplete="off" placeholder="Start typing a name or email">
           </label>
+          <label class="field customer-balance-filter-field">
+            <span>Balance filter</span>
+            <select id="customer-balance-filter">
+              <option value="all">All customers</option>
+              <option value="outstanding">Outstanding balances</option>
+            </select>
+          </label>
           <p id="customers-message" class="form-message" role="status"></p>
 
           <div class="customer-management-grid">
@@ -239,7 +246,10 @@
                     <span>Optional note</span>
                     <textarea id="wallet-topup-note" rows="2" maxlength="500" placeholder="Cash top-up, event credit, etc."></textarea>
                   </label>
-                  <button id="wallet-topup-submit" class="primary-button small-button" type="submit">Add balance</button>
+                  <div class="wallet-action-buttons">
+                    <button id="wallet-topup-submit" class="primary-button small-button" type="submit">Add balance</button>
+                    <button id="wallet-refund-submit" class="secondary-button small-button" type="button">Record refund</button>
+                  </div>
                 </fieldset>
               </form>
               <p id="wallet-message" class="form-message" role="status"></p>
