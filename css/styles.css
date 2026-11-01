@@ -1228,6 +1228,49 @@ body.customer-page {
   text-align: left;
 }
 
+.customer-account-actions {
+  display: flex !important;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px !important;
+}
+
+.notification-toggle {
+  max-width: 230px;
+}
+
+.notification-message {
+  display: none;
+  max-width: 260px;
+  color: #31533a !important;
+  font-size: 0.78rem !important;
+  font-weight: 800;
+}
+
+.notification-message:not(:empty) {
+  display: block;
+}
+
+.notification-message.error {
+  color: var(--danger) !important;
+}
+
+.notification-opt-in-button {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid #8ba17f;
+  border-radius: 14px;
+  background: #edf4e9;
+  color: #31533a;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.notification-opt-in-button:hover {
+  background: #e1eddb;
+}
+
 .customer-account-summary span {
   color: #705744;
   font-size: 0.86rem;
@@ -1236,6 +1279,59 @@ body.customer-page {
 .account-link-button {
   min-height: 36px;
   background: #f8e8d7;
+}
+
+.order-ready-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 130;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(55, 31, 18, 0.58);
+  backdrop-filter: blur(5px);
+}
+
+.order-ready-overlay[hidden] {
+  display: none;
+}
+
+.order-ready-card {
+  width: min(460px, 100%);
+  padding: clamp(28px, 6vw, 44px);
+  border: 2px solid #d6b28c;
+  border-radius: 28px;
+  background: #fffaf1;
+  box-shadow: 0 24px 70px rgba(63, 35, 18, 0.3);
+  text-align: center;
+}
+
+.order-ready-card h2 {
+  margin: 8px 0 12px;
+  color: var(--customer-brown-dark);
+  font-size: clamp(1.75rem, 6vw, 2.5rem);
+  line-height: 1.08;
+}
+
+.order-ready-card > p:not(.eyebrow) {
+  margin: 0 0 24px;
+  color: #69472f;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.order-ready-icon {
+  display: grid;
+  width: 74px;
+  height: 74px;
+  margin: 0 auto 14px;
+  place-items: center;
+  border-radius: 50%;
+  background: #517954;
+  color: white;
+  font-size: 2.4rem;
+  font-weight: 900;
+  box-shadow: 0 10px 24px rgba(81, 121, 84, 0.28);
 }
 
 .auth-overlay {
@@ -1848,6 +1944,16 @@ body.customer-page {
   .customer-account-summary {
     width: 100%;
     justify-content: space-between;
+  }
+
+  .customer-account-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .notification-toggle {
+    max-width: none;
+    text-align: left;
   }
 
   .customer-page .header-note {

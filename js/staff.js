@@ -745,6 +745,21 @@ async function updateOrderStatus(orderId, status) {
   orders = orders.map((order) => (order.id === orderId ? { ...order, status } : order));
   setMessage(staffMessage, "Order status updated.");
   renderOrders();
+
+  if (status === "completed") {
+    const { data: notificationResult, error: notificationError } = await window.elimSupabase.functions.invoke(
+      "send-order-ready",
+      { body: { order_id: orderId } }
+    );
+    if (notificationError) {
+      console.error("Order completed, but push notification could not be sent:", notificationError);
+      setMessage(staffMessage, "Order completed. Push delivery is pending or failed; the in-app notification still works.", true);
+    } else if (notificationResult?.sent > 0) {
+      setMessage(staffMessage, `Order completed and ${notificationResult.sent} push notification(s) sent.`);
+    } else {
+      setMessage(staffMessage, "Order completed. No new push notification was required.");
+    }
+  }
 }
 
 function subscribeToOrders() {
@@ -914,7 +929,7 @@ staffLogout.addEventListener("click", async () => {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20261101");
+    navigator.serviceWorker.register("service-worker.js?v=20261102");
   });
 }
 

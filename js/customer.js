@@ -23,6 +23,12 @@ const customerAccountSummary = document.querySelector("#customer-account-summary
 const customerAccountGreeting = document.querySelector("#customer-account-greeting");
 const customerAccountBalance = document.querySelector("#customer-account-balance");
 const customerSignOut = document.querySelector("#customer-sign-out");
+const notificationToggle = document.querySelector("#notification-toggle");
+const notificationMessage = document.querySelector("#notification-message");
+const confirmationNotificationEnable = document.querySelector("#confirmation-notification-enable");
+const orderReadyOverlay = document.querySelector("#order-ready-overlay");
+const orderReadyNumber = document.querySelector("#order-ready-number");
+const orderReadyClose = document.querySelector("#order-ready-close");
 const customerAuthOverlay = document.querySelector("#customer-auth-overlay");
 const customerAuthClose = document.querySelector("#customer-auth-close");
 const customerAuthModeButtons = document.querySelectorAll("[data-auth-mode]");
@@ -40,6 +46,12 @@ let lastConfirmation = null;
 let currentCustomerProfile = null;
 let currentCustomerBalance = 0;
 let authMessage = { key: "", isError: false };
+let notificationMessageState = { key: "", isError: false };
+let currentPushSubscription = null;
+let orderReadyAudioContext = null;
+let lastReadyOrderNumber = null;
+const customerOrderChannels = new Map();
+const notifiedOrderIds = new Set();
 
 const CATEGORY_PRESENTATION = {
   Coffee: {
@@ -96,6 +108,237 @@ function setAuthMessage(key = "", isError = false) {
   customerAuthMessage.classList.toggle("error", isError);
 }
 
+function setNotificationMessage(key = "", isError = false) {
+  notificationMessageState = { key, isError };
+  notificationMessage.textContent = key ? t(key) : "";
+  notificationMessage.classList.toggle("error", isError);
+}
+
+function supportsPushNotifications() {
+  return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+}
+
+function hasConfiguredVapidKey() {
+  const key = window.ELIM_NOTIFICATION_CONFIG?.vapidPublicKey || "";
+  return key && !key.startsWith("REPLACE_WITH_");
+}
+
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replaceAll("-", "+").replaceAll("_", "/");
+  const rawData = window.atob(base64);
+  return Uint8Array.from([...rawData].map((character) => character.charCodeAt(0)));
+}
+
+async function getServiceWorkerRegistration() {
+  if (!supportsPushNotifications()) return null;
+  const existingRegistration = await navigator.serviceWorker.getRegistration();
+  if (existingRegistration) return existingRegistration;
+  return navigator.serviceWorker.register("service-worker.js?v=20261102");
+}
+
+async function savePushSubscription(subscription) {
+  if (!currentCustomerProfile || !subscription) return false;
+  const serialized = subscription.toJSON();
+  const { error } = await window.elimSupabase.from("push_subscriptions").upsert({
+    user_id: currentCustomerProfile.user_id,
+    endpoint: subscription.endpoint,
+    p256dh: serialized.keys?.p256dh,
+    auth: serialized.keys?.auth,
+    language: window.ELIM_I18N.getLanguage(),
+    updated_at: new Date().toISOString()
+  }, { onConflict: "endpoint" });
+
+  if (error) {
+    console.error("Could not save push subscription:", error);
+    return false;
+  }
+  return true;
+}
+
+function renderNotificationControls() {
+  const signedIn = Boolean(currentCustomerProfile);
+  const enabled = Boolean(currentPushSubscription);
+  notificationToggle.hidden = !signedIn || !supportsPushNotifications();
+  notificationToggle.textContent = t(enabled ? "notification.disable" : "notification.enable");
+  confirmationNotificationEnable.hidden = !signedIn || enabled || !supportsPushNotifications();
+}
+
+async function refreshPushSubscription() {
+  currentPushSubscription = null;
+  if (!currentCustomerProfile || !supportsPushNotifications()) {
+    renderNotificationControls();
+    return;
+  }
+
+  try {
+    const registration = await getServiceWorkerRegistration();
+    currentPushSubscription = await registration?.pushManager.getSubscription() || null;
+    if (currentPushSubscription) await savePushSubscription(currentPushSubscription);
+  } catch (error) {
+    console.error("Could not read push subscription:", error);
+  }
+  renderNotificationControls();
+}
+
+async function enableOrderNotifications() {
+  if (!currentCustomerProfile) return;
+  if (!supportsPushNotifications() || !hasConfiguredVapidKey()) {
+    setNotificationMessage("notification.unsupported", true);
+    return;
+  }
+
+  notificationToggle.disabled = true;
+  confirmationNotificationEnable.disabled = true;
+  setNotificationMessage("notification.enabling");
+
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+      setNotificationMessage("notification.denied", true);
+      return;
+    }
+
+    const registration = await getServiceWorkerRegistration();
+    currentPushSubscription = await registration.pushManager.getSubscription();
+    if (!currentPushSubscription) {
+      currentPushSubscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(window.ELIM_NOTIFICATION_CONFIG.vapidPublicKey)
+      });
+    }
+
+    if (!await savePushSubscription(currentPushSubscription)) {
+      throw new Error("Push subscription could not be saved");
+    }
+    setNotificationMessage("notification.enabled");
+  } catch (error) {
+    console.error("Could not enable order notifications:", error);
+    currentPushSubscription = null;
+    setNotificationMessage("notification.error", true);
+  } finally {
+    notificationToggle.disabled = false;
+    confirmationNotificationEnable.disabled = false;
+    renderNotificationControls();
+  }
+}
+
+async function disableOrderNotifications({ silent = false } = {}) {
+  if (!currentPushSubscription) return;
+  const endpoint = currentPushSubscription.endpoint;
+
+  try {
+    if (currentCustomerProfile) {
+      const { error } = await window.elimSupabase
+        .from("push_subscriptions")
+        .delete()
+        .eq("endpoint", endpoint);
+      if (error) throw error;
+    }
+    await currentPushSubscription.unsubscribe();
+    currentPushSubscription = null;
+    if (!silent) setNotificationMessage("notification.disabled");
+  } catch (error) {
+    console.error("Could not disable order notifications:", error);
+    if (!silent) setNotificationMessage("notification.error", true);
+  }
+  renderNotificationControls();
+}
+
+async function toggleOrderNotifications() {
+  if (currentPushSubscription) await disableOrderNotifications();
+  else await enableOrderNotifications();
+}
+
+function playOrderReadySound() {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return;
+    orderReadyAudioContext ||= new AudioContextClass();
+    const oscillator = orderReadyAudioContext.createOscillator();
+    const gain = orderReadyAudioContext.createGain();
+    oscillator.frequency.setValueAtTime(880, orderReadyAudioContext.currentTime);
+    oscillator.frequency.setValueAtTime(1046, orderReadyAudioContext.currentTime + 0.16);
+    gain.gain.setValueAtTime(0.0001, orderReadyAudioContext.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.22, orderReadyAudioContext.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, orderReadyAudioContext.currentTime + 0.42);
+    oscillator.connect(gain).connect(orderReadyAudioContext.destination);
+    oscillator.start();
+    oscillator.stop(orderReadyAudioContext.currentTime + 0.44);
+  } catch (error) {
+    console.warn("Order-ready sound could not play:", error);
+  }
+}
+
+function showOrderReady(order) {
+  const notificationKey = order.id || `number-${order.order_number}`;
+  if (notifiedOrderIds.has(notificationKey)) return;
+  notifiedOrderIds.add(notificationKey);
+  lastReadyOrderNumber = order.order_number;
+  orderReadyNumber.textContent = t("ready.order", { number: order.order_number });
+  orderReadyOverlay.hidden = false;
+  playOrderReadySound();
+  navigator.vibrate?.([250, 100, 250]);
+}
+
+async function stopWatchingOrder(orderId) {
+  const channel = customerOrderChannels.get(orderId);
+  if (!channel) return;
+  customerOrderChannels.delete(orderId);
+  await window.elimSupabase.removeChannel(channel);
+}
+
+async function stopWatchingCustomerOrders() {
+  const channels = [...customerOrderChannels.values()];
+  customerOrderChannels.clear();
+  await Promise.all(channels.map((channel) => window.elimSupabase.removeChannel(channel)));
+}
+
+function watchCustomerOrder(order) {
+  if (!currentCustomerProfile || !order?.id || customerOrderChannels.has(order.id)) return;
+  const channel = window.elimSupabase
+    .channel(`elim-customer-order-${order.id}`)
+    .on("postgres_changes", {
+      event: "UPDATE",
+      schema: "public",
+      table: "orders",
+      filter: `id=eq.${order.id}`
+    }, (payload) => {
+      if (payload.new?.status !== "completed") return;
+      showOrderReady({ id: order.id, order_number: payload.new.order_number || order.order_number });
+      stopWatchingOrder(order.id);
+    })
+    .subscribe(async (status) => {
+      if (status !== "SUBSCRIBED") return;
+      const { data } = await window.elimSupabase
+        .from("orders")
+        .select("id, order_number, status")
+        .eq("id", order.id)
+        .maybeSingle();
+      if (data?.status === "completed") {
+        showOrderReady(data);
+        stopWatchingOrder(order.id);
+      }
+    });
+  customerOrderChannels.set(order.id, channel);
+}
+
+async function watchOpenCustomerOrders() {
+  await stopWatchingCustomerOrders();
+  if (!currentCustomerProfile) return;
+  const { data, error } = await window.elimSupabase
+    .from("orders")
+    .select("id, order_number, status")
+    .in("status", ["new", "preparing"])
+    .order("created_at", { ascending: false })
+    .limit(20);
+  if (error) {
+    console.error("Could not load customer orders for notifications:", error);
+    return;
+  }
+  (data || []).forEach(watchCustomerOrder);
+}
+
 function renderCustomerAccount() {
   const signedIn = Boolean(currentCustomerProfile);
   customerAccountOpen.hidden = signedIn;
@@ -103,6 +346,9 @@ function renderCustomerAccount() {
   walletPaymentOption.hidden = !signedIn;
 
   if (!signedIn) {
+    currentPushSubscription = null;
+    setNotificationMessage();
+    renderNotificationControls();
     const walletInput = walletPaymentOption.querySelector("input");
     if (walletInput.checked) {
       walletInput.checked = false;
@@ -115,6 +361,7 @@ function renderCustomerAccount() {
   customerAccountGreeting.textContent = t("auth.hello", { name: currentCustomerProfile.display_name });
   customerAccountBalance.textContent = formatEuro(currentCustomerBalance);
   setBalanceTone(customerAccountBalance, currentCustomerBalance);
+  renderNotificationControls();
 }
 
 function setAuthMode(mode) {
@@ -140,6 +387,7 @@ function closeCustomerAuth() {
 
 async function loadCustomerAccount(session) {
   if (!session?.user) {
+    await stopWatchingCustomerOrders();
     currentCustomerProfile = null;
     currentCustomerBalance = 0;
     renderCustomerAccount();
@@ -163,6 +411,7 @@ async function loadCustomerAccount(session) {
     console.error("Could not load customer account:", profileResult.error || walletResult.error);
     currentCustomerProfile = null;
     currentCustomerBalance = 0;
+    await stopWatchingCustomerOrders();
     renderCustomerAccount();
     setAuthMessage("auth.profileFailed", true);
     return;
@@ -171,6 +420,7 @@ async function loadCustomerAccount(session) {
   if (!profileResult.data?.active) {
     currentCustomerProfile = null;
     currentCustomerBalance = 0;
+    await stopWatchingCustomerOrders();
     renderCustomerAccount();
     return;
   }
@@ -180,6 +430,7 @@ async function loadCustomerAccount(session) {
   if (!customerName.value.trim()) customerName.value = currentCustomerProfile.display_name;
   renderCustomerAccount();
   closeCustomerAuth();
+  await Promise.all([refreshPushSubscription(), watchOpenCustomerOrders()]);
 }
 
 async function signInCustomer(event) {
@@ -240,6 +491,7 @@ async function signUpCustomer(event) {
 
 async function signOutCustomer() {
   customerSignOut.disabled = true;
+  await disableOrderNotifications({ silent: true });
   const { error } = await window.elimSupabase.auth.signOut();
   customerSignOut.disabled = false;
   if (error) {
@@ -248,6 +500,7 @@ async function signOutCustomer() {
   }
   currentCustomerProfile = null;
   currentCustomerBalance = 0;
+  await stopWatchingCustomerOrders();
   renderCustomerAccount();
 }
 
@@ -601,6 +854,7 @@ function renderConfirmation() {
     });
     setBalanceTone(confirmationBalance, lastConfirmation.newBalance);
   }
+  renderNotificationControls();
 }
 
 async function submitOrder() {
@@ -664,6 +918,7 @@ async function submitOrder() {
   }
 
   lastConfirmation = {
+    id: order.id,
     orderNumber: order.order_number,
     totalPrice: Number(order.total_price),
     newBalance: paymentMethod === "wallet" ? Number(order.balance) : null
@@ -671,6 +926,9 @@ async function submitOrder() {
   if (paymentMethod === "wallet") {
     currentCustomerBalance = Number(order.balance);
     renderCustomerAccount();
+  }
+  if (currentCustomerProfile && order.id) {
+    watchCustomerOrder({ id: order.id, order_number: order.order_number });
   }
   renderConfirmation();
   confirmationScreen.hidden = false;
@@ -729,6 +987,18 @@ document.addEventListener("click", (event) => {
   }
 });
 
+document.addEventListener("pointerdown", () => {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (AudioContextClass) {
+      orderReadyAudioContext ||= new AudioContextClass();
+      orderReadyAudioContext.resume?.();
+    }
+  } catch (error) {
+    console.warn("Could not prepare order-ready sound:", error);
+  }
+}, { once: true });
+
 customerName.addEventListener("input", () => {
   hideOrderActions();
   setMessage("");
@@ -750,6 +1020,11 @@ customerAuthClose.addEventListener("click", closeCustomerAuth);
 customerSignInForm.addEventListener("submit", signInCustomer);
 customerSignUpForm.addEventListener("submit", signUpCustomer);
 customerSignOut.addEventListener("click", signOutCustomer);
+notificationToggle.addEventListener("click", toggleOrderNotifications);
+confirmationNotificationEnable.addEventListener("click", enableOrderNotifications);
+orderReadyClose.addEventListener("click", () => {
+  orderReadyOverlay.hidden = true;
+});
 customerAuthModeButtons.forEach((button) => {
   button.addEventListener("click", () => setAuthMode(button.dataset.authMode));
 });
@@ -758,6 +1033,7 @@ customerAuthOverlay.addEventListener("click", (event) => {
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !customerAuthOverlay.hidden) closeCustomerAuth();
+  if (event.key === "Escape" && !orderReadyOverlay.hidden) orderReadyOverlay.hidden = true;
 });
 newOrder.addEventListener("click", () => {
   confirmationScreen.hidden = true;
@@ -773,14 +1049,25 @@ document.addEventListener("elim:languagechange", () => {
   renderConfirmation();
   renderCustomerAccount();
   customerAuthMessage.textContent = authMessage.key ? t(authMessage.key) : "";
+  notificationMessage.textContent = notificationMessageState.key ? t(notificationMessageState.key) : "";
+  renderNotificationControls();
+  if (!orderReadyOverlay.hidden && lastReadyOrderNumber) {
+    orderReadyNumber.textContent = t("ready.order", { number: lastReadyOrderNumber });
+  }
+  if (currentPushSubscription) savePushSubscription(currentPushSubscription);
 
   currentMessage = preservedMessage;
   refreshMessage();
 });
 
 if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    if (event.data?.type !== "ORDER_READY") return;
+    const payload = event.data.payload || {};
+    showOrderReady({ id: payload.orderId, order_number: payload.orderNumber });
+  });
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20261101");
+    navigator.serviceWorker.register("service-worker.js?v=20261102");
   });
 }
 

@@ -11,13 +11,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&amp;family=Nunito:wght@500;600;700;800;900&amp;display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/styles.css?v=20261101">
+    <link rel="stylesheet" href="css/styles.css?v=20261102">
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script defer src="js/supabase-config.js?v=20261025"></script>
     <script defer src="js/menu.js?v=20261009"></script>
     <script defer src="js/payment-config.js"></script>
-    <script defer src="js/i18n.js?v=20261101"></script>
-    <script defer src="js/customer.js?v=20261101"></script>
+    <script defer src="js/notification-config.js?v=20261102"></script>
+    <script defer src="js/i18n.js?v=20261102"></script>
+    <script defer src="js/customer.js?v=20261102"></script>
   </head>
   <body class="customer-page">
     <header class="app-header customer-header">
@@ -40,7 +41,11 @@
               <strong id="customer-account-greeting"></strong>
               <span><span data-i18n="auth.balance">Elim-Guthaben</span>: <strong id="customer-account-balance">€0.00</strong></span>
             </div>
-            <button id="customer-sign-out" class="account-link-button" type="button" data-i18n="auth.signOut">Abmelden</button>
+            <div class="customer-account-actions">
+              <button id="notification-toggle" class="account-link-button notification-toggle" type="button" data-i18n="notification.enable">Bestellbenachrichtigungen aktivieren</button>
+              <button id="customer-sign-out" class="account-link-button" type="button" data-i18n="auth.signOut">Abmelden</button>
+              <span id="notification-message" class="notification-message" role="status"></span>
+            </div>
           </div>
         </div>
         <p class="header-note" aria-hidden="true"><span data-i18n="header.note">Ein bisschen Freude<br>in jeder Tasse</span> <span>♥</span></p>
@@ -171,7 +176,18 @@
         <p id="confirmation-total" class="confirmation-total"></p>
         <p id="confirmation-balance" class="confirmation-balance" hidden></p>
         <p data-i18n="confirmation.wait">Bitte warte auf deine Bestellung.</p>
+        <button id="confirmation-notification-enable" class="notification-opt-in-button" type="button" hidden data-i18n="notification.enable">Bestellbenachrichtigungen aktivieren</button>
         <button id="new-order" class="secondary-button" type="button" data-i18n="confirmation.newOrder">Neue Bestellung starten</button>
+      </div>
+    </section>
+
+    <section id="order-ready-overlay" class="order-ready-overlay" hidden aria-labelledby="order-ready-title" aria-live="assertive">
+      <div class="order-ready-card" role="dialog" aria-modal="true">
+        <div class="order-ready-icon" aria-hidden="true">✓</div>
+        <p id="order-ready-number" class="eyebrow"></p>
+        <h2 id="order-ready-title" data-i18n="ready.title">Deine Bestellung ist fertig!</h2>
+        <p data-i18n="ready.body">Bitte hole deine Getränke am Café ab.</p>
+        <button id="order-ready-close" class="primary-button" type="button" data-i18n="ready.close">Schließen</button>
       </div>
     </section>
   </body>
