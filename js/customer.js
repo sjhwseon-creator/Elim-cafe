@@ -5,9 +5,9 @@ const cartItems = document.querySelector("#cart-items");
 const cartCount = document.querySelector("#cart-count");
 const cartTotal = document.querySelector("#cart-total");
 const customerName = document.querySelector("#customer-name");
-const paymentMethodInputs = document.querySelectorAll('input[name="payment-method"]');
-const paymentInstructions = document.querySelector("#payment-instructions");
-const walletPaymentOption = document.querySelector("#wallet-payment-option");
+const checkoutCurrentBalance = document.querySelector("#checkout-current-balance");
+const checkoutOrderTotal = document.querySelector("#checkout-order-total");
+const checkoutBalanceAfter = document.querySelector("#checkout-balance-after");
 const reviewOrder = document.querySelector("#review-order");
 const placeOrder = document.querySelector("#place-order");
 const clearCart = document.querySelector("#clear-cart");
@@ -18,7 +18,7 @@ const confirmationNumber = document.querySelector("#confirmation-number");
 const confirmationTotal = document.querySelector("#confirmation-total");
 const confirmationBalance = document.querySelector("#confirmation-balance");
 const newOrder = document.querySelector("#new-order");
-const customerAccountOpen = document.querySelector("#customer-account-open");
+const customerAppShell = document.querySelector("#customer-app-shell");
 const customerAccountSummary = document.querySelector("#customer-account-summary");
 const customerAccountGreeting = document.querySelector("#customer-account-greeting");
 const customerAccountBalance = document.querySelector("#customer-account-balance");
@@ -30,8 +30,8 @@ const orderReadyOverlay = document.querySelector("#order-ready-overlay");
 const orderReadyNumber = document.querySelector("#order-ready-number");
 const orderReadyClose = document.querySelector("#order-ready-close");
 const customerAuthOverlay = document.querySelector("#customer-auth-overlay");
-const customerAuthClose = document.querySelector("#customer-auth-close");
-const customerAuthModeButtons = document.querySelectorAll("[data-auth-mode]");
+const customerAuthLoading = document.querySelector("#customer-auth-loading");
+const customerAuthContent = document.querySelector("#customer-auth-content");
 const customerSignInForm = document.querySelector("#customer-sign-in-form");
 const customerSignUpForm = document.querySelector("#customer-sign-up-form");
 const customerSignInEmail = document.querySelector("#customer-sign-in-email");
@@ -39,6 +39,7 @@ const customerSignInPassword = document.querySelector("#customer-sign-in-passwor
 const customerSignUpName = document.querySelector("#customer-sign-up-name");
 const customerSignUpEmail = document.querySelector("#customer-sign-up-email");
 const customerSignUpPassword = document.querySelector("#customer-sign-up-password");
+const customerSignUpConfirmPassword = document.querySelector("#customer-sign-up-confirm-password");
 const customerAuthMessage = document.querySelector("#customer-auth-message");
 
 let currentMessage = { key: "", variables: {}, isError: false };
@@ -76,10 +77,6 @@ const CATEGORY_PRESENTATION = {
 
 function t(key, variables = {}) {
   return window.ELIM_I18N.t(key, variables);
-}
-
-function getPaymentLabel(method) {
-  return t(`payment.${method}`);
 }
 
 function formatEuro(value) {
@@ -134,7 +131,7 @@ async function getServiceWorkerRegistration() {
   if (!supportsPushNotifications()) return null;
   const existingRegistration = await navigator.serviceWorker.getRegistration();
   if (existingRegistration) return existingRegistration;
-  return navigator.serviceWorker.register("service-worker.js?v=20261102");
+  return navigator.serviceWorker.register("service-worker.js?v=20261103");
 }
 
 async function savePushSubscription(subscription) {
@@ -340,48 +337,28 @@ async function watchOpenCustomerOrders() {
 }
 
 function renderCustomerAccount() {
-  const signedIn = Boolean(currentCustomerProfile);
-  customerAccountOpen.hidden = signedIn;
-  customerAccountSummary.hidden = !signedIn;
-  walletPaymentOption.hidden = !signedIn;
-
-  if (!signedIn) {
-    currentPushSubscription = null;
-    setNotificationMessage();
-    renderNotificationControls();
-    const walletInput = walletPaymentOption.querySelector("input");
-    if (walletInput.checked) {
-      walletInput.checked = false;
-      hideOrderActions();
-      renderPaymentInstructions();
-    }
-    return;
-  }
-
+  customerAccountSummary.hidden = !currentCustomerProfile;
+  if (!currentCustomerProfile) return;
   customerAccountGreeting.textContent = t("auth.hello", { name: currentCustomerProfile.display_name });
   customerAccountBalance.textContent = formatEuro(currentCustomerBalance);
   setBalanceTone(customerAccountBalance, currentCustomerBalance);
   renderNotificationControls();
+  renderWalletCheckout();
 }
 
-function setAuthMode(mode) {
-  const showSignUp = mode === "signup";
-  customerSignInForm.hidden = showSignUp;
-  customerSignUpForm.hidden = !showSignUp;
-  customerAuthModeButtons.forEach((button) => {
-    button.setAttribute("aria-selected", String(button.dataset.authMode === mode));
-  });
-  setAuthMessage();
-}
-
-function openCustomerAuth() {
-  setAuthMode("signin");
+function showAuthGate({ loading = false } = {}) {
+  customerAppShell.hidden = true;
   customerAuthOverlay.hidden = false;
-  customerSignInEmail.focus();
+  customerAuthLoading.hidden = !loading;
+  customerAuthContent.hidden = loading;
+  if (!loading) window.setTimeout(() => customerSignInEmail.focus(), 0);
 }
 
-function closeCustomerAuth() {
+function showCustomerApp() {
   customerAuthOverlay.hidden = true;
+  customerAuthLoading.hidden = true;
+  customerAuthContent.hidden = true;
+  customerAppShell.hidden = false;
   setAuthMessage();
 }
 
@@ -391,7 +368,8 @@ async function loadCustomerAccount(session) {
     currentCustomerProfile = null;
     currentCustomerBalance = 0;
     renderCustomerAccount();
-    return;
+    showAuthGate();
+    return false;
   }
 
   const [profileResult, walletResult] = await Promise.all([
@@ -413,8 +391,9 @@ async function loadCustomerAccount(session) {
     currentCustomerBalance = 0;
     await stopWatchingCustomerOrders();
     renderCustomerAccount();
+    showAuthGate();
     setAuthMessage("auth.profileFailed", true);
-    return;
+    return false;
   }
 
   if (!profileResult.data?.active) {
@@ -422,15 +401,18 @@ async function loadCustomerAccount(session) {
     currentCustomerBalance = 0;
     await stopWatchingCustomerOrders();
     renderCustomerAccount();
-    return;
+    showAuthGate();
+    setAuthMessage("auth.inactive", true);
+    return false;
   }
 
   currentCustomerProfile = profileResult.data;
   currentCustomerBalance = Number(walletResult.data?.balance || 0);
   if (!customerName.value.trim()) customerName.value = currentCustomerProfile.display_name;
   renderCustomerAccount();
-  closeCustomerAuth();
+  showCustomerApp();
   await Promise.all([refreshPushSubscription(), watchOpenCustomerOrders()]);
+  return true;
 }
 
 async function signInCustomer(event) {
@@ -457,6 +439,11 @@ async function signInCustomer(event) {
 
 async function signUpCustomer(event) {
   event.preventDefault();
+  if (customerSignUpPassword.value !== customerSignUpConfirmPassword.value) {
+    setAuthMessage("auth.passwordMismatch", true);
+    customerSignUpConfirmPassword.focus();
+    return;
+  }
   const submitButton = customerSignUpForm.querySelector('button[type="submit"]');
   submitButton.disabled = true;
   setAuthMessage("auth.creating");
@@ -482,6 +469,7 @@ async function signUpCustomer(event) {
   }
 
   customerSignUpPassword.value = "";
+  customerSignUpConfirmPassword.value = "";
   if (data.session) {
     await loadCustomerAccount(data.session);
   } else {
@@ -501,17 +489,31 @@ async function signOutCustomer() {
   currentCustomerProfile = null;
   currentCustomerBalance = 0;
   await stopWatchingCustomerOrders();
+  cart.clear();
+  lastConfirmation = null;
+  confirmationScreen.hidden = true;
+  orderReadyOverlay.hidden = true;
+  customerName.value = "";
+  hideOrderActions();
+  renderMenu();
+  renderCart();
   renderCustomerAccount();
+  showAuthGate();
 }
 
 async function initializeCustomerAuth() {
-  if (!window.elimSupabaseConfigured || !window.elimSupabase) return;
+  showAuthGate({ loading: true });
+  if (!window.elimSupabaseConfigured || !window.elimSupabase) {
+    showAuthGate();
+    setAuthMessage("error.serviceUnavailable", true);
+    return;
+  }
 
   if (window.elimAuthCallbackDetected) {
     const { error } = await window.elimCompleteAuthCallback();
     if (error) {
       console.error("Could not complete customer email confirmation:", error);
-      openCustomerAuth();
+      showAuthGate();
       setAuthMessage("auth.callbackFailed", true);
     }
   }
@@ -519,6 +521,8 @@ async function initializeCustomerAuth() {
   const { data, error } = await window.elimSupabase.auth.getSession();
   if (error) {
     console.error("Could not restore customer session:", error);
+    showAuthGate();
+    setAuthMessage("auth.sessionFailed", true);
   } else {
     await loadCustomerAccount(data.session);
   }
@@ -577,87 +581,14 @@ function getTotal(rows = getCartRows()) {
   return rows.reduce((sum, item) => sum + item.price * item.quantity, 0);
 }
 
-function getSelectedPaymentMethod() {
-  return document.querySelector('input[name="payment-method"]:checked')?.value || "";
-}
-
-function hasPublicPaymentValue(value) {
-  return typeof value === "string" && value.trim() !== "";
-}
-
-function renderPaymentInstructions() {
-  const method = getSelectedPaymentMethod();
-  const config = window.ELIM_PAYMENT_CONFIG;
-
-  if (!method) {
-    paymentInstructions.hidden = true;
-    paymentInstructions.innerHTML = "";
-    return;
-  }
-
-  if (method === "paypal") {
-    const directPayment = hasPublicPaymentValue(config.paypalAccount)
-      ? `
-        <p>${escapeHtml(t("payment.paypalAlternative"))}</p>
-        <dl class="payment-details">
-          <div><dt>${escapeHtml(t("payment.paypalAccount"))}</dt><dd>${escapeHtml(config.paypalAccount)}</dd></div>
-        </dl>
-      `
-      : "";
-
-    paymentInstructions.innerHTML = `
-      <p>${escapeHtml(t("payment.paypalScan"))}</p>
-      ${directPayment}
-    `;
-  }
-
-  if (method === "sepa") {
-    const hasBankDetails = hasPublicPaymentValue(config.sepaAccountHolder)
-      && hasPublicPaymentValue(config.sepaIban);
-    const directPayment = hasBankDetails
-      ? `
-        <p>${escapeHtml(t("payment.sepaAlternative"))}</p>
-        <dl class="payment-details">
-          <div><dt>${escapeHtml(t("payment.bankName"))}</dt><dd>${escapeHtml(config.bankName)}</dd></div>
-          <div>
-            <dt>${escapeHtml(t("payment.accountHolder"))}</dt>
-            <dd><span>${escapeHtml(config.sepaAccountHolder)}</span><button class="copy-button" type="button" data-copy="account-holder">${escapeHtml(t("payment.copy"))}</button></dd>
-          </div>
-          <div>
-            <dt>${escapeHtml(t("payment.iban"))}</dt>
-            <dd><span>${escapeHtml(config.sepaIban)}</span><button class="copy-button" type="button" data-copy="iban">${escapeHtml(t("payment.copy"))}</button></dd>
-          </div>
-        </dl>
-      `
-      : "";
-
-    paymentInstructions.innerHTML = `
-      <p>${escapeHtml(t("payment.sepaScan"))}</p>
-      ${directPayment}
-      <dl class="payment-details">
-        <div><dt>${escapeHtml(t("payment.totalAmount"))}</dt><dd>${formatEuro(getTotal())}</dd></div>
-      </dl>
-    `;
-  }
-
-  if (method === "cash") {
-    paymentInstructions.innerHTML = `<p>${escapeHtml(t("payment.cashInstruction"))}</p>`;
-  }
-
-  if (method === "wallet") {
-    const orderTotal = getTotal();
-    const balanceAfter = currentCustomerBalance - orderTotal;
-    paymentInstructions.innerHTML = `
-      <p>${escapeHtml(t("payment.walletInstruction"))}</p>
-      <dl class="payment-details wallet-balance-preview">
-        <div><dt>${escapeHtml(t("payment.currentBalance"))}</dt><dd class="${currentCustomerBalance < 0 ? "negative-balance" : ""}">${formatEuro(currentCustomerBalance)}</dd></div>
-        <div><dt>${escapeHtml(t("payment.orderTotal"))}</dt><dd>${formatEuro(orderTotal)}</dd></div>
-        <div><dt>${escapeHtml(t("payment.balanceAfter"))}</dt><dd class="${balanceAfter < 0 ? "negative-balance" : ""}">${formatEuro(balanceAfter)}</dd></div>
-      </dl>
-    `;
-  }
-
-  paymentInstructions.hidden = false;
+function renderWalletCheckout(rows = getCartRows()) {
+  const orderTotal = getTotal(rows);
+  const balanceAfter = currentCustomerBalance - orderTotal;
+  checkoutCurrentBalance.textContent = formatEuro(currentCustomerBalance);
+  checkoutOrderTotal.textContent = formatEuro(orderTotal);
+  checkoutBalanceAfter.textContent = formatEuro(balanceAfter);
+  setBalanceTone(checkoutCurrentBalance, currentCustomerBalance);
+  setBalanceTone(checkoutBalanceAfter, balanceAfter);
 }
 
 function setMessage(key = "", variables = {}, isError = false) {
@@ -691,7 +622,6 @@ function updateQuantity(id, variant, change) {
   hideOrderActions();
   renderMenu();
   renderCart();
-  renderPaymentInstructions();
 }
 
 function renderQuantityControls(item, variant = null) {
@@ -770,6 +700,7 @@ function renderCart() {
 
   cartCount.textContent = t(itemCount === 1 ? "cart.itemCountOne" : "cart.itemCountMany", { count: itemCount });
   cartTotal.textContent = formatEuro(getTotal(rows));
+  renderWalletCheckout(rows);
   reviewOrder.disabled = itemCount === 0;
   clearCart.disabled = itemCount === 0;
 
@@ -805,7 +736,6 @@ function renderCart() {
 function renderSummary() {
   const rows = getCartRows();
   const name = customerName.value.trim();
-  const paymentMethod = getSelectedPaymentMethod();
 
   if (!rows.length) {
     setMessage("validation.addItem", {}, true);
@@ -818,20 +748,17 @@ function renderSummary() {
     return;
   }
 
-  if (!paymentMethod) {
-    setMessage("validation.selectPayment", {}, true);
-    paymentMethodInputs[0]?.focus();
-    return;
-  }
-
   setMessage();
+  const total = getTotal(rows);
+  const balanceAfter = currentCustomerBalance - total;
   orderSummary.innerHTML = `
     <strong>${escapeHtml(t("order.confirmFor", { name }))}</strong>
     <ul>
       ${rows.map((item) => `<li>${item.quantity} x ${escapeHtml(getDisplayName(item))} - ${formatEuro(item.price * item.quantity)}</li>`).join("")}
     </ul>
-    <p><strong>${escapeHtml(t("order.total", { total: formatEuro(getTotal(rows)) }))}</strong></p>
-    <p>${escapeHtml(t("order.paymentMethod"))}: <strong>${escapeHtml(getPaymentLabel(paymentMethod))}</strong></p>
+    <p><strong>${escapeHtml(t("order.total", { total: formatEuro(total) }))}</strong></p>
+    <p>${escapeHtml(t("wallet.currentBalance"))}: <strong class="${currentCustomerBalance < 0 ? "negative-balance" : ""}">${formatEuro(currentCustomerBalance)}</strong></p>
+    <p>${escapeHtml(t("wallet.balanceAfter"))}: <strong class="${balanceAfter < 0 ? "negative-balance" : ""}">${formatEuro(balanceAfter)}</strong></p>
   `;
   orderSummary.hidden = false;
   placeOrder.hidden = false;
@@ -862,7 +789,6 @@ async function submitOrder() {
 
   const rows = getCartRows();
   const name = customerName.value.trim();
-  const paymentMethod = getSelectedPaymentMethod();
 
   if (!rows.length) {
     setMessage("validation.addItem", {}, true);
@@ -875,14 +801,8 @@ async function submitOrder() {
     return;
   }
 
-  if (!paymentMethod) {
-    setMessage("validation.selectPayment", {}, true);
-    paymentMethodInputs[0]?.focus();
-    return;
-  }
-
-  if (paymentMethod === "wallet" && !currentCustomerProfile) {
-    setMessage("validation.walletSignIn", {}, true);
+  if (!currentCustomerProfile) {
+    showAuthGate();
     return;
   }
 
@@ -899,16 +819,10 @@ async function submitOrder() {
     variant: item.variant,
     quantity: item.quantity
   }));
-  const { data: order, error } = paymentMethod === "wallet"
-    ? await window.elimSupabase.rpc("create_wallet_order", {
-        p_customer_name: name,
-        p_items: orderItems
-      })
-    : await window.elimSupabase.rpc("create_order", {
-        p_customer_name: name,
-        p_payment_method: paymentMethod,
-        p_items: orderItems
-      });
+  const { data: order, error } = await window.elimSupabase.rpc("create_wallet_order", {
+    p_customer_name: name,
+    p_items: orderItems
+  });
 
   if (error || !order?.order_number) {
     console.error("Supabase RPC error while creating order:", error || order);
@@ -921,12 +835,10 @@ async function submitOrder() {
     id: order.id,
     orderNumber: order.order_number,
     totalPrice: Number(order.total_price),
-    newBalance: paymentMethod === "wallet" ? Number(order.balance) : null
+    newBalance: Number(order.balance)
   };
-  if (paymentMethod === "wallet") {
-    currentCustomerBalance = Number(order.balance);
-    renderCustomerAccount();
-  }
+  currentCustomerBalance = Number(order.balance);
+  renderCustomerAccount();
   if (currentCustomerProfile && order.id) {
     watchCustomerOrder({ id: order.id, order_number: order.order_number });
   }
@@ -935,10 +847,6 @@ async function submitOrder() {
 
   cart.clear();
   customerName.value = currentCustomerProfile?.display_name || "";
-  paymentMethodInputs.forEach((input) => {
-    input.checked = false;
-  });
-  renderPaymentInstructions();
   hideOrderActions();
   renderMenu();
   renderCart();
@@ -949,20 +857,6 @@ function resetCart() {
   hideOrderActions();
   renderMenu();
   renderCart();
-  renderPaymentInstructions();
-}
-
-async function copyPaymentDetail(detail) {
-  const config = window.ELIM_PAYMENT_CONFIG;
-  const value = detail === "iban" ? config.sepaIban : config.sepaAccountHolder;
-
-  try {
-    await navigator.clipboard.writeText(value);
-    setMessage(detail === "iban" ? "copy.ibanSuccess" : "copy.accountHolderSuccess");
-  } catch (error) {
-    console.error("Could not copy payment detail:", error);
-    setMessage("copy.failed", {}, true);
-  }
 }
 
 document.addEventListener("click", (event) => {
@@ -971,11 +865,6 @@ document.addEventListener("click", (event) => {
 
   const { action, id } = button.dataset;
   const variant = button.dataset.variant || null;
-
-  if (button.dataset.copy) {
-    copyPaymentDetail(button.dataset.copy);
-    return;
-  }
 
   if (action === "increase") updateQuantity(id, variant, 1);
   if (action === "decrease") updateQuantity(id, variant, -1);
@@ -1004,19 +893,9 @@ customerName.addEventListener("input", () => {
   setMessage("");
 });
 
-paymentMethodInputs.forEach((input) => {
-  input.addEventListener("change", () => {
-    hideOrderActions();
-    setMessage("");
-    renderPaymentInstructions();
-  });
-});
-
 reviewOrder.addEventListener("click", renderSummary);
 placeOrder.addEventListener("click", submitOrder);
 clearCart.addEventListener("click", resetCart);
-customerAccountOpen.addEventListener("click", openCustomerAuth);
-customerAuthClose.addEventListener("click", closeCustomerAuth);
 customerSignInForm.addEventListener("submit", signInCustomer);
 customerSignUpForm.addEventListener("submit", signUpCustomer);
 customerSignOut.addEventListener("click", signOutCustomer);
@@ -1025,14 +904,7 @@ confirmationNotificationEnable.addEventListener("click", enableOrderNotification
 orderReadyClose.addEventListener("click", () => {
   orderReadyOverlay.hidden = true;
 });
-customerAuthModeButtons.forEach((button) => {
-  button.addEventListener("click", () => setAuthMode(button.dataset.authMode));
-});
-customerAuthOverlay.addEventListener("click", (event) => {
-  if (event.target === customerAuthOverlay) closeCustomerAuth();
-});
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && !customerAuthOverlay.hidden) closeCustomerAuth();
   if (event.key === "Escape" && !orderReadyOverlay.hidden) orderReadyOverlay.hidden = true;
 });
 newOrder.addEventListener("click", () => {
@@ -1044,7 +916,6 @@ document.addEventListener("elim:languagechange", () => {
 
   renderMenu();
   renderCart();
-  renderPaymentInstructions();
   if (!orderSummary.hidden) renderSummary();
   renderConfirmation();
   renderCustomerAccount();
@@ -1067,7 +938,7 @@ if ("serviceWorker" in navigator) {
     showOrderReady({ id: payload.orderId, order_number: payload.orderNumber });
   });
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20261102");
+    navigator.serviceWorker.register("service-worker.js?v=20261103");
   });
 }
 

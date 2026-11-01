@@ -455,7 +455,7 @@ function previewOrder() {
     customer_name: "Hwan",
     created_at: new Date().toISOString(),
     total_price: 8.5,
-    payment_method: "paypal",
+    payment_method: "wallet",
     order_items: [
       { category: "Coffee", item_name: "Americano", variant: "hot", quantity: 1, unit_price: 2 },
       { category: "Coffee", item_name: "Americano", variant: "ice", quantity: 1, unit_price: 2.5 },

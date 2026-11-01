@@ -11,16 +11,16 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&amp;family=Nunito:wght@500;600;700;800;900&amp;display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/styles.css?v=20261102">
+    <link rel="stylesheet" href="css/styles.css?v=20261103">
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script defer src="js/supabase-config.js?v=20261025"></script>
     <script defer src="js/menu.js?v=20261009"></script>
-    <script defer src="js/payment-config.js"></script>
     <script defer src="js/notification-config.js?v=20261102"></script>
-    <script defer src="js/i18n.js?v=20261102"></script>
-    <script defer src="js/customer.js?v=20261102"></script>
+    <script defer src="js/i18n.js?v=20261103"></script>
+    <script defer src="js/customer.js?v=20261103"></script>
   </head>
   <body class="customer-page">
+    <div id="customer-app-shell" hidden>
     <header class="app-header customer-header">
       <div class="brand-lockup">
         <p class="eyebrow" data-i18n="header.welcome">Willkommen im</p>
@@ -35,8 +35,7 @@
           <button type="button" data-language="zh" aria-pressed="false">中文</button>
         </div>
         <div class="customer-account-widget">
-          <button id="customer-account-open" class="account-button" type="button" data-i18n="auth.account">Konto</button>
-          <div id="customer-account-summary" class="customer-account-summary" hidden>
+          <div id="customer-account-summary" class="customer-account-summary">
             <div>
               <strong id="customer-account-greeting"></strong>
               <span><span data-i18n="auth.balance">Elim-Guthaben</span>: <strong id="customer-account-balance">€0.00</strong></span>
@@ -86,32 +85,20 @@
           <input id="customer-name" type="text" autocomplete="name" placeholder="Name eingeben" data-i18n-placeholder="customer.namePlaceholder">
         </label>
 
-        <fieldset class="payment-section">
-          <legend data-i18n="payment.title">Zahlungsart</legend>
-          <div class="payment-options">
-            <label class="payment-option">
-              <input type="radio" name="payment-method" value="paypal">
-              <span class="payment-icon paypal-icon" aria-hidden="true">P</span>
-              <span data-i18n="payment.paypal">PayPal</span>
-            </label>
-            <label class="payment-option">
-              <input type="radio" name="payment-method" value="sepa">
-              <span class="payment-icon" aria-hidden="true">⌂</span>
-              <span data-i18n="payment.sepa">SEPA-Überweisung</span>
-            </label>
-            <label class="payment-option">
-              <input type="radio" name="payment-method" value="cash">
-              <span class="payment-icon" aria-hidden="true">▣</span>
-              <span data-i18n="payment.cash">Barzahlung</span>
-            </label>
-            <label id="wallet-payment-option" class="payment-option wallet-payment-option" hidden>
-              <input type="radio" name="payment-method" value="wallet">
-              <span class="payment-icon wallet-icon" aria-hidden="true">€</span>
-              <span data-i18n="payment.wallet">Elim-Guthaben</span>
-            </label>
+        <dl class="wallet-checkout-summary" aria-label="Elim-Guthaben" data-i18n-aria-label="auth.balance">
+          <div>
+            <dt data-i18n="wallet.currentBalance">Aktuelles Guthaben</dt>
+            <dd id="checkout-current-balance">€0.00</dd>
           </div>
-          <div id="payment-instructions" class="payment-instructions" hidden></div>
-        </fieldset>
+          <div>
+            <dt data-i18n="wallet.orderTotal">Bestellwert</dt>
+            <dd id="checkout-order-total">€0.00</dd>
+          </div>
+          <div>
+            <dt data-i18n="wallet.balanceAfter">Guthaben danach</dt>
+            <dd id="checkout-balance-after">€0.00</dd>
+          </div>
+        </dl>
 
         <div id="order-summary" class="summary-box" hidden></div>
 
@@ -121,23 +108,29 @@
         <p id="form-message" class="form-message" role="status"></p>
       </aside>
     </main>
+    </div>
 
-    <section id="customer-auth-overlay" class="auth-overlay" hidden aria-labelledby="customer-auth-title">
-      <div class="auth-card" role="dialog" aria-modal="true">
-        <div class="auth-card-heading">
+    <section id="customer-auth-overlay" class="auth-gate" aria-labelledby="customer-auth-title">
+      <div id="customer-auth-loading" class="auth-loading" role="status">
+        <strong>Elim Café</strong>
+        <span data-i18n="auth.checking">Anmeldung wird geprüft...</span>
+      </div>
+      <div id="customer-auth-content" class="auth-gate-content" hidden>
+        <div class="auth-gate-header">
           <div>
-            <p class="eyebrow">Elim Café</p>
-            <h2 id="customer-auth-title" data-i18n="auth.title">Kundenkonto</h2>
+            <p class="eyebrow">ELIM CAFÉ</p>
+            <h1 id="customer-auth-title" data-i18n="auth.title">Kundenkonto</h1>
           </div>
-          <button id="customer-auth-close" class="icon-close-button" type="button" aria-label="Schließen" data-i18n-aria-label="auth.close">×</button>
+          <div class="language-selector" role="group" aria-label="Sprache auswählen" data-i18n-aria-label="language.selector">
+            <button type="button" data-language="de" aria-pressed="true">DE</button>
+            <button type="button" data-language="en" aria-pressed="false">EN</button>
+            <button type="button" data-language="ko" aria-pressed="false">KO</button>
+            <button type="button" data-language="zh" aria-pressed="false">中文</button>
+          </div>
         </div>
-
-        <div class="auth-mode-switch" role="tablist" aria-label="Kontoaktion" data-i18n-aria-label="auth.mode">
-          <button type="button" role="tab" data-auth-mode="signin" aria-selected="true" data-i18n="auth.signIn">Anmelden</button>
-          <button type="button" role="tab" data-auth-mode="signup" aria-selected="false" data-i18n="auth.signUp">Registrieren</button>
-        </div>
-
-        <form id="customer-sign-in-form" class="customer-auth-form">
+        <div class="auth-forms-grid">
+        <form id="customer-sign-in-form" class="customer-auth-form auth-section-card">
+          <h2 data-i18n="auth.signIn">Anmelden</h2>
           <label class="field">
             <span data-i18n="auth.email">E-Mail</span>
             <input id="customer-sign-in-email" type="email" autocomplete="email" required data-i18n-placeholder="auth.emailPlaceholder" placeholder="E-Mail-Adresse">
@@ -149,7 +142,8 @@
           <button class="primary-button" type="submit" data-i18n="auth.signIn">Anmelden</button>
         </form>
 
-        <form id="customer-sign-up-form" class="customer-auth-form" hidden>
+        <form id="customer-sign-up-form" class="customer-auth-form auth-section-card">
+          <h2 data-i18n="auth.createAccount">Konto erstellen</h2>
           <label class="field">
             <span data-i18n="auth.name">Name</span>
             <input id="customer-sign-up-name" type="text" autocomplete="name" maxlength="100" required data-i18n-placeholder="auth.namePlaceholder" placeholder="Name">
@@ -162,8 +156,13 @@
             <span data-i18n="auth.password">Passwort</span>
             <input id="customer-sign-up-password" type="password" autocomplete="new-password" minlength="6" required data-i18n-placeholder="auth.passwordPlaceholder" placeholder="Passwort">
           </label>
+          <label class="field">
+            <span data-i18n="auth.confirmPassword">Passwort bestätigen</span>
+            <input id="customer-sign-up-confirm-password" type="password" autocomplete="new-password" minlength="6" required data-i18n-placeholder="auth.confirmPasswordPlaceholder" placeholder="Passwort erneut eingeben">
+          </label>
           <button class="primary-button" type="submit" data-i18n="auth.createAccount">Konto erstellen</button>
         </form>
+        </div>
         <p id="customer-auth-message" class="form-message" role="status"></p>
       </div>
     </section>
