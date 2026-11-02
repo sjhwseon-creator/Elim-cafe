@@ -1,9 +1,9 @@
-const CACHE_NAME = "elim-cafe-staff-upgrade-v14";
+const CACHE_NAME = "elim-cafe-guest-orders-v15";
 const APP_SHELL = [
   "./",
   "index.html",
   "staff.html",
-  "css/styles.css?v=20261104",
+  "css/styles.css?v=20261105",
   "js/supabase-config.js?v=20261025",
   "js/menu.js?v=20261009",
   "js/notification-config.js?v=20261102",
@@ -12,7 +12,8 @@ const APP_SHELL = [
   "js/receipt.js?v=20261104",
   "js/printer-bridge.js?v=20261018",
   "js/printer-test.js?v=20261018",
-  "js/staff.js?v=20261104",
+  "js/staff.js?v=20261105",
+  "js/staff-order.js?v=20261105",
   "manifest.json",
   "icons/elim-icon.svg",
   "icons/elim-maskable.svg"

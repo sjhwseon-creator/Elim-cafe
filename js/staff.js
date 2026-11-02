@@ -19,6 +19,7 @@ const staffViewButtons = document.querySelectorAll("[data-staff-view]");
 const staffOrdersView = document.querySelector("#staff-orders-view");
 const staffCustomersView = document.querySelector("#staff-customers-view");
 const staffReceiptView = document.querySelector("#staff-receipt-view");
+const staffGuestOrderView = document.querySelector("#staff-guest-order-view");
 const staffOrderSections = document.querySelectorAll('[data-staff-section="orders"]');
 const archiveOrderDate = document.querySelector("#archive-order-date");
 const archiveCompletedOrders = document.querySelector("#archive-completed-orders");
@@ -241,8 +242,10 @@ function setStaffView(view) {
   currentStaffView = view;
   const showCustomers = view === "customers";
   const showReceipt = view === "receipt";
-  staffOrdersView.hidden = showCustomers;
+  const showGuestOrder = view === "guest-order";
+  staffOrdersView.hidden = showCustomers || showGuestOrder;
   staffCustomersView.hidden = !showCustomers;
+  staffGuestOrderView.hidden = !showGuestOrder;
   staffReceiptView.hidden = !showReceipt;
   staffOrderSections.forEach((section) => {
     section.hidden = view !== "orders";
@@ -252,6 +255,7 @@ function setStaffView(view) {
   });
   if (showCustomers) loadCustomers();
   if (showReceipt) renderReceiptPreview();
+  document.dispatchEvent(new CustomEvent("elim:staffviewchange", { detail: { view } }));
 }
 
 function filteredCustomers() {
@@ -1097,7 +1101,7 @@ staffLogout.addEventListener("click", async () => {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20261104");
+    navigator.serviceWorker.register("service-worker.js?v=20261105");
   });
 }
 

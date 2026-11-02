@@ -483,7 +483,7 @@ button:disabled {
 
 .staff-tabs {
   display: inline-grid;
-  grid-template-columns: repeat(3, minmax(120px, 1fr));
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
   gap: 4px;
   margin-bottom: 22px;
   padding: 4px;
@@ -672,6 +672,219 @@ button:disabled {
   color: var(--muted);
   font-size: 0.86rem;
   line-height: 1.4;
+}
+
+.guest-order-heading {
+  align-items: flex-start;
+}
+
+.guest-order-heading > div:first-child > p:last-child {
+  max-width: 620px;
+  margin: 6px 0 0;
+  color: var(--muted);
+}
+
+.guest-account-summary {
+  display: grid;
+  min-width: 180px;
+  gap: 2px;
+  padding: 12px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffaf2;
+  text-align: right;
+}
+
+.guest-account-summary span,
+.guest-account-summary small {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.guest-account-summary strong {
+  color: var(--coffee-dark);
+  font-size: 1.45rem;
+}
+
+.staff-order-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(300px, 0.65fr);
+  align-items: start;
+  gap: 20px;
+}
+
+.staff-order-menu-panel,
+.staff-order-cart-panel {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fffdf8;
+}
+
+.staff-order-menu-panel > h3,
+.staff-order-cart-panel h3 {
+  margin-top: 0;
+}
+
+.staff-order-menu {
+  display: grid;
+  gap: 16px;
+}
+
+.staff-order-category {
+  padding: 14px;
+  border-radius: 10px;
+  background: #f6eadc;
+}
+
+.staff-order-category.category-latte {
+  background: #fff2cf;
+}
+
+.staff-order-category.category-ade {
+  background: #e2f4ff;
+}
+
+.staff-order-category h4 {
+  margin: 0 0 10px;
+  color: var(--coffee-dark);
+  font-size: 1.25rem;
+}
+
+.staff-order-menu-items,
+.staff-order-cart-items {
+  display: grid;
+  gap: 7px;
+}
+
+.staff-order-menu-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 54px;
+  padding: 9px 11px;
+  border: 1px solid rgb(122 74 40 / 14%);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 88%);
+}
+
+.staff-order-menu-item > span:first-child {
+  display: grid;
+  gap: 2px;
+}
+
+.staff-order-menu-item small,
+.staff-order-cart-row small {
+  color: var(--muted);
+}
+
+.staff-order-menu-item.has-variants {
+  grid-template-columns: minmax(130px, 0.7fr) minmax(270px, 1.3fr);
+}
+
+.staff-order-variants {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.staff-order-variant {
+  display: grid;
+  justify-items: end;
+  gap: 5px;
+}
+
+.staff-order-variant > span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.staff-order-quantity {
+  display: grid;
+  grid-template-columns: 38px 30px 38px;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+
+.staff-order-quantity button {
+  width: 38px;
+  min-height: 38px;
+  padding: 0;
+  border-radius: 7px;
+  background: var(--coffee);
+  color: #fff;
+  font-size: 1.15rem;
+}
+
+.staff-order-quantity button:disabled {
+  background: #cdb9a8;
+}
+
+.staff-order-cart-panel {
+  position: sticky;
+  top: 14px;
+  display: grid;
+  gap: 14px;
+}
+
+.staff-order-cart-heading,
+.staff-order-cart-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.staff-order-cart-row {
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.staff-order-cart-row > span {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+}
+
+.staff-order-cart-row > button {
+  width: 34px;
+  min-height: 34px;
+  padding: 0;
+  border-radius: 50%;
+  background: #f3dfd2;
+  color: var(--danger);
+}
+
+.staff-order-payment-options {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+
+.staff-order-payment-options legend {
+  padding: 0 5px;
+  font-weight: 800;
+}
+
+.staff-order-payment-options label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+}
+
+.staff-order-payment-options input {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--coffee);
 }
 
 .wallet-action-buttons {
@@ -1168,6 +1381,27 @@ button:disabled {
 }
 
 @media (max-width: 760px) {
+  .staff-order-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .staff-order-cart-panel {
+    position: static;
+  }
+
+  .staff-order-menu-item.has-variants {
+    grid-template-columns: 1fr;
+  }
+
+  .guest-order-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .guest-account-summary {
+    text-align: left;
+  }
+
   .customer-management-grid {
     grid-template-columns: 1fr;
   }

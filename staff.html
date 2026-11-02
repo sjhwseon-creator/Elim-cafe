@@ -7,13 +7,15 @@
     <meta name="description" content="Elim Café staff order dashboard.">
     <title>Elim Café Staff</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="css/styles.css?v=20261104">
+    <link rel="stylesheet" href="css/styles.css?v=20261105">
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script defer src="js/supabase-config.js?v=20261025"></script>
+    <script defer src="js/menu.js?v=20261009"></script>
     <script defer src="js/receipt.js?v=20261104"></script>
     <script defer src="js/printer-bridge.js?v=20261018"></script>
     <script defer src="js/printer-test.js?v=20261018"></script>
-    <script defer src="js/staff.js?v=20261104"></script>
+    <script defer src="js/staff.js?v=20261105"></script>
+    <script defer src="js/staff-order.js?v=20261105"></script>
   </head>
   <body class="staff-page">
     <header class="app-header">
@@ -51,6 +53,7 @@
           <button type="button" data-staff-view="orders" aria-pressed="true">Orders</button>
           <button type="button" data-staff-view="customers" aria-pressed="false">Customers</button>
           <button type="button" data-staff-view="receipt" aria-pressed="false">Receipt Settings</button>
+          <button type="button" data-staff-view="guest-order" aria-pressed="false">Guest Order</button>
         </nav>
 
         <div id="staff-orders-view">
@@ -285,6 +288,56 @@
               </div>
               <div id="wallet-transactions" class="wallet-transactions empty-state">No transactions yet.</div>
             </section>
+          </div>
+        </section>
+
+        <section id="staff-guest-order-view" class="staff-guest-order-view" aria-labelledby="guest-order-heading" hidden>
+          <div class="section-heading guest-order-heading">
+            <div>
+              <p class="eyebrow">Staff-entered counter order</p>
+              <h2 id="guest-order-heading">Guest Order</h2>
+              <p>Use this screen when a guest orders directly at the café without the customer app.</p>
+            </div>
+            <div class="guest-account-summary" aria-label="Guest account totals">
+              <span>Guest total</span>
+              <strong id="guest-account-total">€0.00</strong>
+              <small><span id="guest-account-order-count">0</span> order(s)</small>
+            </div>
+          </div>
+
+          <div class="staff-order-layout">
+            <section class="staff-order-menu-panel" aria-labelledby="staff-order-menu-heading">
+              <h3 id="staff-order-menu-heading">Menu</h3>
+              <div id="staff-order-menu" class="staff-order-menu"></div>
+            </section>
+
+            <aside class="staff-order-cart-panel" aria-labelledby="staff-order-cart-heading">
+              <div class="staff-order-cart-heading">
+                <h3 id="staff-order-cart-heading">Guest Cart</h3>
+                <strong id="staff-order-cart-count" class="pill">0 items</strong>
+              </div>
+              <div id="staff-order-cart-items" class="staff-order-cart-items empty-state">Selected drinks will appear here.</div>
+              <div class="total-row">
+                <span>Total</span>
+                <strong id="staff-order-total">€0.00</strong>
+              </div>
+
+              <label class="field">
+                <span>Name on order</span>
+                <input id="staff-order-customer-name" type="text" maxlength="100" value="Guest" required>
+              </label>
+
+              <fieldset class="staff-order-payment-options">
+                <legend>Payment method</legend>
+                <label><input type="radio" name="staff-order-payment" value="cash" checked> Cash</label>
+                <label><input type="radio" name="staff-order-payment" value="paypal"> PayPal</label>
+                <label><input type="radio" name="staff-order-payment" value="sepa"> SEPA bank transfer</label>
+              </fieldset>
+
+              <button id="staff-order-submit" class="primary-button" type="button" disabled>Place Guest Order</button>
+              <button id="staff-order-clear" class="secondary-button" type="button" disabled>Clear Cart</button>
+              <p id="staff-order-message" class="form-message" role="status"></p>
+            </aside>
           </div>
         </section>
       </section>
