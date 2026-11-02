@@ -483,7 +483,7 @@ button:disabled {
 
 .staff-tabs {
   display: inline-grid;
-  grid-template-columns: repeat(2, minmax(120px, 1fr));
+  grid-template-columns: repeat(3, minmax(120px, 1fr));
   gap: 4px;
   margin-bottom: 22px;
   padding: 4px;
@@ -634,6 +634,44 @@ button:disabled {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+}
+
+.welcome-bonus-button {
+  border-color: #c68a33;
+  background: #fff1d5;
+  color: #78460f;
+}
+
+.topup-preview {
+  display: block;
+  margin-top: 6px;
+  color: #347348;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.order-archive-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) auto minmax(220px, 1fr);
+  align-items: end;
+  gap: 12px;
+  margin: 0 0 16px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fffaf2;
+}
+
+.order-archive-controls .field {
+  margin: 0;
+}
+
+.order-archive-controls > p {
+  align-self: center;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.4;
 }
 
 .wallet-action-buttons {
@@ -829,7 +867,7 @@ button:disabled {
 .receipt-format-head,
 .receipt-format-row {
   display: grid;
-  grid-template-columns: minmax(130px, 1.2fr) minmax(110px, 1fr) minmax(100px, 0.8fr) minmax(74px, 0.6fr);
+  grid-template-columns: minmax(130px, 1.2fr) minmax(110px, 1fr) minmax(100px, 0.8fr) minmax(74px, 0.6fr) minmax(74px, 0.6fr);
   align-items: center;
   gap: 10px;
 }
@@ -1060,6 +1098,16 @@ button:disabled {
 }
 
 @media (max-width: 460px) {
+  .staff-tabs {
+    display: grid;
+    grid-template-columns: 1fr;
+    width: 100%;
+  }
+
+  .order-archive-controls {
+    grid-template-columns: 1fr;
+  }
+
   .receipt-settings-form,
   .receipt-settings-fields {
     grid-template-columns: 1fr;

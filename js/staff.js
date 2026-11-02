@@ -18,6 +18,10 @@ const receiptTestPrint = document.querySelector("#receipt-test-print");
 const staffViewButtons = document.querySelectorAll("[data-staff-view]");
 const staffOrdersView = document.querySelector("#staff-orders-view");
 const staffCustomersView = document.querySelector("#staff-customers-view");
+const staffReceiptView = document.querySelector("#staff-receipt-view");
+const staffOrderSections = document.querySelectorAll('[data-staff-section="orders"]');
+const archiveOrderDate = document.querySelector("#archive-order-date");
+const archiveCompletedOrders = document.querySelector("#archive-completed-orders");
 const refreshCustomers = document.querySelector("#refresh-customers");
 const customerSearch = document.querySelector("#customer-search");
 const customerBalanceFilter = document.querySelector("#customer-balance-filter");
@@ -32,6 +36,8 @@ const walletTopupAmount = document.querySelector("#wallet-topup-amount");
 const walletTopupNote = document.querySelector("#wallet-topup-note");
 const walletTopupSubmit = document.querySelector("#wallet-topup-submit");
 const walletRefundSubmit = document.querySelector("#wallet-refund-submit");
+const walletWelcomeBonus = document.querySelector("#wallet-welcome-bonus");
+const walletTopupPreview = document.querySelector("#wallet-topup-preview");
 const walletMessage = document.querySelector("#wallet-message");
 const walletTransactions = document.querySelector("#wallet-transactions");
 
@@ -41,6 +47,13 @@ const receiptFields = {
   footer_text: document.querySelector("#receipt-footer-text"),
   custom_text: document.querySelector("#receipt-custom-text"),
   separator_style: document.querySelector("#receipt-separator-style"),
+  show_cafe_name: document.querySelector("#receipt-show-cafe-name"),
+  show_header_text: document.querySelector("#receipt-show-header-text"),
+  show_order_details: document.querySelector("#receipt-show-order-details"),
+  show_items: document.querySelector("#receipt-show-items"),
+  show_summary: document.querySelector("#receipt-show-summary"),
+  show_custom_text: document.querySelector("#receipt-show-custom-text"),
+  show_footer_text: document.querySelector("#receipt-show-footer-text"),
   show_customer_name: document.querySelector("#receipt-show-customer"),
   show_order_number: document.querySelector("#receipt-show-order-number"),
   show_payment_method: document.querySelector("#receipt-show-payment"),
@@ -49,6 +62,7 @@ const receiptFields = {
   show_category: document.querySelector("#receipt-show-category"),
   show_category_subtotal: document.querySelector("#receipt-show-category-subtotal"),
   cafe_name_size: document.querySelector("#receipt-cafe-name-size"),
+  header_size: document.querySelector("#receipt-header-size"),
   category_size: document.querySelector("#receipt-category-size"),
   details_size: document.querySelector("#receipt-details-size"),
   items_size: document.querySelector("#receipt-items-size"),
@@ -56,6 +70,7 @@ const receiptFields = {
   footer_size: document.querySelector("#receipt-footer-size"),
   custom_text_size: document.querySelector("#receipt-custom-text-size"),
   cafe_name_align: document.querySelector("#receipt-cafe-name-align"),
+  header_align: document.querySelector("#receipt-header-align"),
   category_align: document.querySelector("#receipt-category-align"),
   details_align: document.querySelector("#receipt-details-align"),
   items_align: document.querySelector("#receipt-items-align"),
@@ -83,6 +98,8 @@ let printerConnected = false;
 let printQueue = Promise.resolve();
 let customers = [];
 let selectedCustomerId = null;
+let selectedCustomerHasWelcomeBonus = false;
+let currentStaffView = "orders";
 const activePrintIds = new Set();
 const queuedPrintIds = new Set();
 
@@ -161,7 +178,7 @@ function showDashboard() {
 }
 
 function updatePrinterWarning() {
-  printerWarning.hidden = printerConnected;
+  printerWarning.hidden = printerConnected || currentStaffView !== "orders";
   receiptTestPrint.disabled = !printerConnected;
 }
 
@@ -221,13 +238,20 @@ function renderOrders() {
 }
 
 function setStaffView(view) {
+  currentStaffView = view;
   const showCustomers = view === "customers";
+  const showReceipt = view === "receipt";
   staffOrdersView.hidden = showCustomers;
   staffCustomersView.hidden = !showCustomers;
+  staffReceiptView.hidden = !showReceipt;
+  staffOrderSections.forEach((section) => {
+    section.hidden = view !== "orders";
+  });
   staffViewButtons.forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.staffView === view));
   });
   if (showCustomers) loadCustomers();
+  if (showReceipt) renderReceiptPreview();
 }
 
 function filteredCustomers() {
@@ -282,6 +306,10 @@ function renderSelectedCustomer() {
   selectedCustomerEmail.textContent = customer.email;
   selectedCustomerBalance.textContent = formatEuro(customer.balance);
   selectedCustomerBalance.classList.toggle("negative-balance", customer.balance < 0);
+  walletWelcomeBonus.disabled = selectedCustomerHasWelcomeBonus;
+  walletWelcomeBonus.textContent = selectedCustomerHasWelcomeBonus
+    ? "Willkommensrabatt already applied"
+    : "Willkommensrabatt +€3";
 }
 
 async function loadCustomers() {
@@ -329,7 +357,7 @@ async function loadWalletTransactions(customerId) {
 
   const { data, error } = await window.elimSupabase
     .from("wallet_transactions")
-    .select("id, type, amount, balance_after, note, created_at")
+    .select("id, type, amount, balance_after, note, promotion_code, created_at")
     .eq("user_id", customerId)
     .order("created_at", { ascending: false })
     .limit(100);
@@ -340,6 +368,8 @@ async function loadWalletTransactions(customerId) {
     return;
   }
   if (customerId !== selectedCustomerId) return;
+  selectedCustomerHasWelcomeBonus = (data || []).some((transaction) => transaction.promotion_code === "welcome_3_eur");
+  renderSelectedCustomer();
 
   if (!data?.length) {
     walletTransactions.className = "wallet-transactions empty-state";
@@ -369,6 +399,7 @@ async function loadWalletTransactions(customerId) {
 
 async function selectCustomer(customerId) {
   selectedCustomerId = customerId;
+  selectedCustomerHasWelcomeBonus = false;
   setMessage(walletMessage, "");
   renderCustomerList();
   renderSelectedCustomer();
@@ -386,17 +417,30 @@ async function changeCustomerBalance(amount, transactionType = "topup") {
   const isRefund = transactionType === "refund";
   walletTopupSubmit.disabled = true;
   walletRefundSubmit.disabled = true;
-  setMessage(walletMessage, `${isRefund ? "Refunding" : "Adding"} ${formatEuro(numericAmount)} ${isRefund ? "to" : "for"} ${customer.display_name}...`);
-  const rpcName = isRefund ? "staff_refund_balance" : "staff_add_balance";
+  walletWelcomeBonus.disabled = true;
+  const expectedBonus = numericAmount >= 10 ? Math.round(numericAmount * 10) / 100 : 0;
+  const expectedCredit = numericAmount + expectedBonus;
+  setMessage(
+    walletMessage,
+    isRefund
+      ? `Refunding ${formatEuro(numericAmount)} to ${customer.display_name}...`
+      : `Recording ${formatEuro(numericAmount)} paid and crediting ${formatEuro(expectedCredit)}...`
+  );
+  const rpcName = isRefund ? "staff_refund_balance" : "staff_top_up_with_bonus";
   const rpcArguments = {
     p_customer_user_id: customer.user_id,
-    p_amount: numericAmount,
     p_note: walletTopupNote.value.trim() || null
   };
-  if (isRefund) rpcArguments.p_order_id = null;
+  if (isRefund) {
+    rpcArguments.p_amount = numericAmount;
+    rpcArguments.p_order_id = null;
+  } else {
+    rpcArguments.p_paid_amount = numericAmount;
+  }
   const { data, error } = await window.elimSupabase.rpc(rpcName, rpcArguments);
   walletTopupSubmit.disabled = false;
   walletRefundSubmit.disabled = false;
+  walletWelcomeBonus.disabled = selectedCustomerHasWelcomeBonus;
 
   if (error) {
     console.error("Could not add customer balance:", error);
@@ -410,7 +454,65 @@ async function changeCustomerBalance(amount, transactionType = "topup") {
   ));
   walletTopupAmount.value = "";
   walletTopupNote.value = "";
-  setMessage(walletMessage, `${isRefund ? "Refunded" : "Added"} ${formatEuro(numericAmount)}. New balance: ${formatEuro(newBalance)}.`);
+  updateTopupPreview();
+  const creditedAmount = Number(data?.credited_amount || numericAmount);
+  const bonusAmount = Number(data?.bonus_amount || 0);
+  setMessage(
+    walletMessage,
+    isRefund
+      ? `Refunded ${formatEuro(numericAmount)}. New balance: ${formatEuro(newBalance)}.`
+      : bonusAmount > 0
+        ? `Paid ${formatEuro(numericAmount)} + bonus ${formatEuro(bonusAmount)} = credited ${formatEuro(creditedAmount)}. New balance: ${formatEuro(newBalance)}.`
+        : `Paid and credited ${formatEuro(creditedAmount)}. No bonus below €10. New balance: ${formatEuro(newBalance)}.`
+  );
+  renderCustomerList();
+  renderSelectedCustomer();
+  await loadWalletTransactions(customer.user_id);
+}
+
+function updateTopupPreview() {
+  const paidAmount = Number(walletTopupAmount.value);
+  if (!Number.isFinite(paidAmount) || paidAmount <= 0) {
+    walletTopupPreview.textContent = "10% bonus applies to top-ups of €10 or more.";
+    return;
+  }
+  const bonus = paidAmount >= 10 ? Math.round(paidAmount * 10) / 100 : 0;
+  walletTopupPreview.textContent = bonus > 0
+    ? `Paid ${formatEuro(paidAmount)} + 10% bonus ${formatEuro(bonus)} = credit ${formatEuro(paidAmount + bonus)}`
+    : `Paid ${formatEuro(paidAmount)} = credit ${formatEuro(paidAmount)}. Bonus starts at €10.`;
+}
+
+async function applyWelcomeBonus() {
+  const customer = selectedCustomer();
+  if (!customer || selectedCustomerHasWelcomeBonus) return;
+  if (!window.confirm(`Apply the one-time €3 Willkommensrabatt to ${customer.display_name}?`)) return;
+
+  walletWelcomeBonus.disabled = true;
+  walletTopupSubmit.disabled = true;
+  walletRefundSubmit.disabled = true;
+  setMessage(walletMessage, `Applying the €3 Willkommensrabatt to ${customer.display_name}...`);
+
+  const { data, error } = await window.elimSupabase.rpc("staff_apply_welcome_bonus", {
+    p_customer_user_id: customer.user_id,
+    p_note: walletTopupNote.value.trim() || null
+  });
+
+  walletTopupSubmit.disabled = false;
+  walletRefundSubmit.disabled = false;
+  if (error) {
+    console.error("Could not apply welcome bonus:", error);
+    walletWelcomeBonus.disabled = selectedCustomerHasWelcomeBonus;
+    setMessage(walletMessage, `Could not apply Willkommensrabatt: ${error.message}`, true);
+    return;
+  }
+
+  selectedCustomerHasWelcomeBonus = true;
+  const newBalance = Number(data?.balance || 0);
+  customers = customers.map((entry) => (
+    entry.user_id === customer.user_id ? { ...entry, balance: newBalance } : entry
+  ));
+  walletTopupNote.value = "";
+  setMessage(walletMessage, `Willkommensrabatt €3 credited. New balance: ${formatEuro(newBalance)}.`);
   renderCustomerList();
   renderSelectedCustomer();
   await loadWalletTransactions(customer.user_id);
@@ -423,6 +525,13 @@ function currentReceiptSettings() {
     footer_text: receiptFields.footer_text.value,
     custom_text: receiptFields.custom_text.value,
     separator_style: receiptFields.separator_style.value,
+    show_cafe_name: receiptFields.show_cafe_name.checked,
+    show_header_text: receiptFields.show_header_text.checked,
+    show_order_details: receiptFields.show_order_details.checked,
+    show_items: receiptFields.show_items.checked,
+    show_summary: receiptFields.show_summary.checked,
+    show_custom_text: receiptFields.show_custom_text.checked,
+    show_footer_text: receiptFields.show_footer_text.checked,
     show_customer_name: receiptFields.show_customer_name.checked,
     show_order_number: receiptFields.show_order_number.checked,
     show_payment_method: receiptFields.show_payment_method.checked,
@@ -431,6 +540,7 @@ function currentReceiptSettings() {
     show_category: receiptFields.show_category.checked,
     show_category_subtotal: receiptFields.show_category_subtotal.checked,
     cafe_name_size: receiptFields.cafe_name_size.value,
+    header_size: receiptFields.header_size.value,
     category_size: receiptFields.category_size.value,
     details_size: receiptFields.details_size.value,
     items_size: receiptFields.items_size.value,
@@ -438,6 +548,7 @@ function currentReceiptSettings() {
     footer_size: receiptFields.footer_size.value,
     custom_text_size: receiptFields.custom_text_size.value,
     cafe_name_align: receiptFields.cafe_name_align.value,
+    header_align: receiptFields.header_align.value,
     category_align: receiptFields.category_align.value,
     details_align: receiptFields.details_align.value,
     items_align: receiptFields.items_align.value,
@@ -491,6 +602,13 @@ function fillReceiptSettingsForm(settings) {
   receiptFields.footer_text.value = settings.footer_text;
   receiptFields.custom_text.value = settings.custom_text;
   receiptFields.separator_style.value = settings.separator_style;
+  receiptFields.show_cafe_name.checked = settings.show_cafe_name;
+  receiptFields.show_header_text.checked = settings.show_header_text;
+  receiptFields.show_order_details.checked = settings.show_order_details;
+  receiptFields.show_items.checked = settings.show_items;
+  receiptFields.show_summary.checked = settings.show_summary;
+  receiptFields.show_custom_text.checked = settings.show_custom_text;
+  receiptFields.show_footer_text.checked = settings.show_footer_text;
   receiptFields.show_customer_name.checked = settings.show_customer_name;
   receiptFields.show_order_number.checked = settings.show_order_number;
   receiptFields.show_payment_method.checked = settings.show_payment_method;
@@ -499,6 +617,7 @@ function fillReceiptSettingsForm(settings) {
   receiptFields.show_category.checked = settings.show_category;
   receiptFields.show_category_subtotal.checked = settings.show_category_subtotal;
   receiptFields.cafe_name_size.value = settings.cafe_name_size;
+  receiptFields.header_size.value = settings.header_size;
   receiptFields.category_size.value = settings.category_size;
   receiptFields.details_size.value = settings.details_size;
   receiptFields.items_size.value = settings.items_size;
@@ -506,6 +625,7 @@ function fillReceiptSettingsForm(settings) {
   receiptFields.footer_size.value = settings.footer_size;
   receiptFields.custom_text_size.value = settings.custom_text_size;
   receiptFields.cafe_name_align.value = settings.cafe_name_align;
+  receiptFields.header_align.value = settings.header_align;
   receiptFields.category_align.value = settings.category_align;
   receiptFields.details_align.value = settings.details_align;
   receiptFields.items_align.value = settings.items_align;
@@ -520,7 +640,7 @@ function fillReceiptSettingsForm(settings) {
 async function loadReceiptSettings() {
   const { data, error } = await window.elimSupabase
     .from("receipt_settings")
-    .select("cafe_name, header_text, footer_text, custom_text, show_customer_name, show_order_number, show_payment_method, show_order_time, show_total, show_category, show_category_subtotal, separator_style, cafe_name_size, category_size, details_size, items_size, summary_size, footer_size, custom_text_size, cafe_name_align, category_align, details_align, items_align, summary_align, footer_align, custom_text_align, category_bold, items_bold")
+    .select("cafe_name, header_text, footer_text, custom_text, show_cafe_name, show_header_text, show_order_details, show_items, show_summary, show_custom_text, show_footer_text, show_customer_name, show_order_number, show_payment_method, show_order_time, show_total, show_category, show_category_subtotal, separator_style, cafe_name_size, header_size, category_size, details_size, items_size, summary_size, footer_size, custom_text_size, cafe_name_align, header_align, category_align, details_align, items_align, summary_align, footer_align, custom_text_align, category_bold, items_bold")
     .eq("id", 1)
     .single();
 
@@ -587,6 +707,7 @@ async function loadOrders({ processPrints = true } = {}) {
   const { data, error } = await window.elimSupabase
     .from("orders")
     .select("id, order_number, customer_name, total_price, payment_method, status, created_at, print_status, printed_at, print_attempts, printing_started_at, order_items(category, item_name, variant, quantity, unit_price)")
+    .is("archived_at", null)
     .order("created_at", { ascending: false });
 
   refreshOrders.disabled = false;
@@ -601,6 +722,49 @@ async function loadOrders({ processPrints = true } = {}) {
   renderOrders();
   renderReceiptPreview();
   if (processPrints) queuePendingAutomaticPrints();
+}
+
+function berlinDateString(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/Berlin",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(date);
+  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+async function archiveFinishedOrders() {
+  const orderDate = archiveOrderDate.value;
+  if (!orderDate) {
+    setMessage(staffMessage, "Choose the finished service date first.", true);
+    return;
+  }
+  if (!window.confirm(`Archive completed and printed orders from ${orderDate}? They will be hidden from Live Orders but retained in Supabase.`)) return;
+
+  archiveCompletedOrders.disabled = true;
+  setMessage(staffMessage, `Archiving finished orders from ${orderDate}...`);
+  const { data, error } = await window.elimSupabase.rpc("staff_archive_completed_orders", {
+    p_order_date: orderDate,
+    p_timezone: "Europe/Berlin"
+  });
+  archiveCompletedOrders.disabled = false;
+
+  if (error) {
+    console.error("Could not archive finished orders:", error);
+    setMessage(staffMessage, `Could not archive orders: ${error.message}`, true);
+    return;
+  }
+
+  await loadOrders({ processPrints: false });
+  const archived = Number(data?.archived || 0);
+  const remaining = Number(data?.remaining || 0);
+  setMessage(
+    staffMessage,
+    `${archived} completed order(s) archived. ${remaining} active or unresolved order(s) from that date remain visible.`,
+    remaining > 0
+  );
 }
 
 async function loadOrderForPrint(orderId) {
@@ -872,9 +1036,12 @@ staffCustomerList.addEventListener("click", (event) => {
 document.querySelectorAll("[data-topup-amount]").forEach((button) => {
   button.addEventListener("click", () => {
     walletTopupAmount.value = button.dataset.topupAmount;
+    updateTopupPreview();
     walletTopupAmount.focus();
   });
 });
+walletTopupAmount.addEventListener("input", updateTopupPreview);
+walletWelcomeBonus.addEventListener("click", applyWelcomeBonus);
 walletTopupForm.addEventListener("submit", (event) => {
   event.preventDefault();
   changeCustomerBalance(walletTopupAmount.value, "topup");
@@ -916,6 +1083,7 @@ window.elimPrinter.onStatus((status) => {
 
 loginForm.addEventListener("submit", signInStaff);
 refreshOrders.addEventListener("click", () => loadOrders());
+archiveCompletedOrders.addEventListener("click", archiveFinishedOrders);
 staffLogout.addEventListener("click", async () => {
   staffLogout.disabled = true;
   await stopRealtime();
@@ -929,9 +1097,11 @@ staffLogout.addEventListener("click", async () => {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20261102");
+    navigator.serviceWorker.register("service-worker.js?v=20261104");
   });
 }
 
+archiveOrderDate.value = berlinDateString();
+updateTopupPreview();
 fillReceiptSettingsForm(receiptSettings);
 initializeStaffApp();

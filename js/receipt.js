@@ -10,6 +10,13 @@
     header_text: "",
     footer_text: "Thank you!",
     custom_text: "",
+    show_cafe_name: true,
+    show_header_text: true,
+    show_order_details: true,
+    show_items: true,
+    show_summary: true,
+    show_custom_text: true,
+    show_footer_text: true,
     show_customer_name: true,
     show_order_number: true,
     show_payment_method: true,
@@ -19,6 +26,7 @@
     show_category_subtotal: true,
     separator_style: "dash",
     cafe_name_size: 2,
+    header_size: 1,
     category_size: 2,
     details_size: 1,
     items_size: 2,
@@ -26,6 +34,7 @@
     footer_size: 1,
     custom_text_size: 1,
     cafe_name_align: "center",
+    header_align: "center",
     category_align: "center",
     details_align: "left",
     items_align: "left",
@@ -58,6 +67,13 @@
       header_text: printableText(merged.header_text),
       footer_text: printableText(merged.footer_text),
       custom_text: printableText(merged.custom_text),
+      show_cafe_name: Boolean(merged.show_cafe_name),
+      show_header_text: Boolean(merged.show_header_text),
+      show_order_details: Boolean(merged.show_order_details),
+      show_items: Boolean(merged.show_items),
+      show_summary: Boolean(merged.show_summary),
+      show_custom_text: Boolean(merged.show_custom_text),
+      show_footer_text: Boolean(merged.show_footer_text),
       show_customer_name: Boolean(merged.show_customer_name),
       show_order_number: Boolean(merged.show_order_number),
       show_payment_method: Boolean(merged.show_payment_method),
@@ -67,6 +83,7 @@
       show_category_subtotal: Boolean(merged.show_category_subtotal),
       separator_style: ["dash", "solid", "double"].includes(merged.separator_style) ? merged.separator_style : DEFAULT_SETTINGS.separator_style,
       cafe_name_size: normalizedSize(merged.cafe_name_size),
+      header_size: normalizedSize(merged.header_size, 2),
       category_size: normalizedSize(merged.category_size),
       details_size: normalizedSize(merged.details_size, 2),
       items_size: normalizedSize(merged.items_size),
@@ -74,6 +91,7 @@
       footer_size: normalizedSize(merged.footer_size, 2),
       custom_text_size: normalizedSize(merged.custom_text_size, 2),
       cafe_name_align: normalizedAlign(merged.cafe_name_align, "center"),
+      header_align: normalizedAlign(merged.header_align, "center"),
       category_align: normalizedAlign(merged.category_align, "center"),
       details_align: normalizedAlign(merged.details_align),
       items_align: normalizedAlign(merged.items_align),
@@ -189,38 +207,52 @@
     const resolved = normalizeSettings(settings);
     const rows = [];
     const divider = separator(resolved.separator_style);
-    rows.push(...textRows(resolved.cafe_name, { size: resolved.cafe_name_size, bold: true, align: resolved.cafe_name_align }));
-    if (resolved.header_text.trim()) rows.push(...textRows(resolved.header_text, { align: "center" }));
-    rows.push(row(divider));
+    if (resolved.show_cafe_name) {
+      rows.push(...textRows(resolved.cafe_name, { size: resolved.cafe_name_size, bold: true, align: resolved.cafe_name_align }));
+    }
+    if (resolved.show_header_text && resolved.header_text.trim()) {
+      rows.push(...textRows(resolved.header_text, { size: resolved.header_size, align: resolved.header_align }));
+    }
+    if (resolved.show_cafe_name || (resolved.show_header_text && resolved.header_text.trim())) rows.push(row(divider));
 
     if (resolved.show_category) {
       rows.push(...textRows(category.toUpperCase(), { size: resolved.category_size, bold: resolved.category_bold, align: resolved.category_align }));
       rows.push(row(divider));
     }
 
-    const detailOptions = { size: resolved.details_size, align: resolved.details_align };
-    if (resolved.show_order_number) rows.push(...textRows(`Order #${printableText(order.order_number, 20)}`, detailOptions));
-    if (resolved.show_customer_name && order.customer_name) rows.push(...textRows(order.customer_name, detailOptions));
-    if (resolved.show_order_time) rows.push(...textRows(formatTime(order.created_at), detailOptions));
-    rows.push(row(""));
+    if (resolved.show_order_details) {
+      const detailOptions = { size: resolved.details_size, align: resolved.details_align };
+      if (resolved.show_order_number) rows.push(...textRows(`Order #${printableText(order.order_number, 20)}`, detailOptions));
+      if (resolved.show_customer_name && order.customer_name) rows.push(...textRows(order.customer_name, detailOptions));
+      if (resolved.show_order_time) rows.push(...textRows(formatTime(order.created_at), detailOptions));
+      rows.push(row(""));
+    }
 
-    items.forEach((item) => {
-      rows.push(...textRows(`${item.item_name}${variantLabel(item.variant)} x${item.quantity}`, {
-        size: resolved.items_size,
-        bold: resolved.items_bold,
-        align: resolved.items_align
-      }));
-    });
+    if (resolved.show_items) {
+      items.forEach((item) => {
+        rows.push(...textRows(`${item.item_name}${variantLabel(item.variant)} x${item.quantity}`, {
+          size: resolved.items_size,
+          bold: resolved.items_bold,
+          align: resolved.items_align
+        }));
+      });
+    }
 
-    rows.push(row(divider));
-    const summaryOptions = { size: resolved.summary_size, align: resolved.summary_align };
-    if (resolved.show_category_subtotal) rows.push(row(totalLine("Subtotal", categorySubtotal(items), resolved.summary_size), summaryOptions));
-    if (resolved.show_total) rows.push(row(totalLine("Order total", order.total_price, resolved.summary_size), summaryOptions));
-    if (resolved.show_payment_method) rows.push(...textRows(PAYMENT_LABELS[order.payment_method] || "Payment not recorded", summaryOptions));
-    rows.push(row(divider));
+    if (resolved.show_summary) {
+      rows.push(row(divider));
+      const summaryOptions = { size: resolved.summary_size, align: resolved.summary_align };
+      if (resolved.show_category_subtotal) rows.push(row(totalLine("Subtotal", categorySubtotal(items), resolved.summary_size), summaryOptions));
+      if (resolved.show_total) rows.push(row(totalLine("Order total", order.total_price, resolved.summary_size), summaryOptions));
+      if (resolved.show_payment_method) rows.push(...textRows(PAYMENT_LABELS[order.payment_method] || "Payment not recorded", summaryOptions));
+      rows.push(row(divider));
+    }
 
-    if (resolved.custom_text.trim()) rows.push(...textRows(resolved.custom_text, { size: resolved.custom_text_size, align: resolved.custom_text_align }));
-    if (resolved.footer_text.trim()) rows.push(...textRows(resolved.footer_text, { size: resolved.footer_size, align: resolved.footer_align }));
+    if (resolved.show_custom_text && resolved.custom_text.trim()) {
+      rows.push(...textRows(resolved.custom_text, { size: resolved.custom_text_size, align: resolved.custom_text_align }));
+    }
+    if (resolved.show_footer_text && resolved.footer_text.trim()) {
+      rows.push(...textRows(resolved.footer_text, { size: resolved.footer_size, align: resolved.footer_align }));
+    }
     return rows;
   }
 
