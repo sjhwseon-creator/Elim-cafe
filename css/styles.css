@@ -650,28 +650,96 @@ button:disabled {
   line-height: 1.35;
 }
 
-.order-archive-controls {
-  display: grid;
-  grid-template-columns: minmax(180px, 260px) auto minmax(220px, 1fr);
-  align-items: end;
-  gap: 12px;
-  margin: 0 0 16px;
-  padding: 14px;
+.archive-order-button {
+  width: 100%;
+  min-height: 40px;
+  margin-top: 12px;
+  border: 1px solid #b58b68;
+  border-radius: 7px;
+  background: #f8eadf;
+  color: var(--coffee-dark);
+  font-weight: 800;
+}
+
+.archive-order-button:disabled {
+  border-color: var(--line);
+  background: #eee8e1;
+  color: #93867c;
+  cursor: not-allowed;
+}
+
+.archived-orders-panel {
+  margin-top: 26px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.archive-toggle-button {
+  display: flex;
+  width: 100%;
+  min-height: 62px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: #fffaf2;
+  color: var(--coffee-dark);
+  text-align: left;
 }
 
-.order-archive-controls .field {
-  margin: 0;
+.archive-toggle-button > span:first-child {
+  display: grid;
+  gap: 2px;
 }
 
-.order-archive-controls > p {
-  align-self: center;
+.archive-toggle-button[aria-expanded="true"] {
+  border-color: var(--coffee);
+  background: #f7e8d8;
+}
+
+.archived-orders-list {
+  margin-top: 12px;
+  opacity: 0.92;
+}
+
+.archived-order-card {
+  background: #f7f3ee;
+}
+
+.wallet-offering-form fieldset {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.7fr) minmax(220px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+  margin: 18px 0 0;
+  padding: 14px;
+  border: 1px solid #c5a46d;
+  border-radius: 8px;
+  background: #fffaf0;
+}
+
+.wallet-offering-form legend {
+  padding: 0 6px;
+  font-weight: 800;
+}
+
+.wallet-offering-form fieldset > p {
+  grid-column: 1 / -1;
   margin: 0;
   color: var(--muted);
-  font-size: 0.86rem;
+  font-size: 0.88rem;
   line-height: 1.4;
+}
+
+.wallet-offering-form textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  resize: vertical;
+  font: inherit;
 }
 
 .guest-order-heading {
@@ -1317,10 +1385,6 @@ button:disabled {
     width: 100%;
   }
 
-  .order-archive-controls {
-    grid-template-columns: 1fr;
-  }
-
   .receipt-settings-form,
   .receipt-settings-fields {
     grid-template-columns: 1fr;
@@ -1413,6 +1477,10 @@ button:disabled {
   }
 
   .wallet-topup-form fieldset {
+    grid-template-columns: 1fr;
+  }
+
+  .wallet-offering-form fieldset {
     grid-template-columns: 1fr;
   }
 

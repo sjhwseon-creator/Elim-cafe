@@ -7,14 +7,14 @@
     <meta name="description" content="Elim Café staff order dashboard.">
     <title>Elim Café Staff</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="css/styles.css?v=20261105">
+    <link rel="stylesheet" href="css/styles.css?v=20261106">
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script defer src="js/supabase-config.js?v=20261025"></script>
     <script defer src="js/menu.js?v=20261009"></script>
     <script defer src="js/receipt.js?v=20261104"></script>
     <script defer src="js/printer-bridge.js?v=20261018"></script>
     <script defer src="js/printer-test.js?v=20261018"></script>
-    <script defer src="js/staff.js?v=20261105"></script>
+    <script defer src="js/staff.js?v=20261106"></script>
     <script defer src="js/staff-order.js?v=20261105"></script>
   </head>
   <body class="staff-page">
@@ -207,18 +207,24 @@
           </div>
           <button id="refresh-orders" class="secondary-button small-button" type="button">Refresh</button>
         </div>
-        <div class="order-archive-controls">
-          <label class="field">
-            <span>Finished service date</span>
-            <input id="archive-order-date" type="date">
-          </label>
-          <button id="archive-completed-orders" class="secondary-button small-button" type="button">Archive completed orders</button>
-          <p>Only completed and successfully printed orders are removed from Live Orders. Financial and notification history is preserved.</p>
-        </div>
         <div id="staff-message" class="form-message" role="status"></div>
         <div id="orders-list" class="orders-list empty-state">
           Waiting for orders...
         </div>
+
+        <section class="archived-orders-panel" aria-labelledby="archived-orders-heading">
+          <button id="toggle-archived-orders" class="archive-toggle-button" type="button" aria-expanded="false" aria-controls="archived-orders-content">
+            <span>
+              <span class="eyebrow">Previous archive</span>
+              <strong id="archived-orders-heading">Archived Orders</strong>
+            </span>
+            <span><span id="archived-orders-count">0</span> order(s) ▾</span>
+          </button>
+          <div id="archived-orders-content" hidden>
+            <p id="archived-orders-message" class="form-message" role="status"></p>
+            <div id="archived-orders-list" class="orders-list archived-orders-list empty-state">Open the archive to load previous orders.</div>
+          </div>
+        </section>
         </div>
         </div>
 
@@ -279,6 +285,22 @@
                     <button id="wallet-topup-submit" class="primary-button small-button" type="submit">Add balance</button>
                     <button id="wallet-refund-submit" class="secondary-button small-button" type="button">Record refund</button>
                   </div>
+                </fieldset>
+              </form>
+
+              <form id="wallet-offering-form" class="wallet-offering-form">
+                <fieldset>
+                  <legend>Offering / 헌금</legend>
+                  <p>Deduct an offering from this customer’s existing Elim Balance. The balance cannot go below €0 for an offering.</p>
+                  <label class="field">
+                    <span>Offering amount</span>
+                    <input id="wallet-offering-amount" type="number" inputmode="decimal" min="0.01" max="10000" step="0.01" placeholder="0.00" required>
+                  </label>
+                  <label class="field">
+                    <span>Optional note</span>
+                    <textarea id="wallet-offering-note" rows="2" maxlength="500" placeholder="Sunday offering, thanksgiving offering, etc."></textarea>
+                  </label>
+                  <button id="wallet-offering-submit" class="primary-button small-button" type="submit">Record offering</button>
                 </fieldset>
               </form>
               <p id="wallet-message" class="form-message" role="status"></p>

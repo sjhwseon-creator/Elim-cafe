@@ -21,8 +21,11 @@ const staffCustomersView = document.querySelector("#staff-customers-view");
 const staffReceiptView = document.querySelector("#staff-receipt-view");
 const staffGuestOrderView = document.querySelector("#staff-guest-order-view");
 const staffOrderSections = document.querySelectorAll('[data-staff-section="orders"]');
-const archiveOrderDate = document.querySelector("#archive-order-date");
-const archiveCompletedOrders = document.querySelector("#archive-completed-orders");
+const toggleArchivedOrders = document.querySelector("#toggle-archived-orders");
+const archivedOrdersContent = document.querySelector("#archived-orders-content");
+const archivedOrdersCount = document.querySelector("#archived-orders-count");
+const archivedOrdersMessage = document.querySelector("#archived-orders-message");
+const archivedOrdersList = document.querySelector("#archived-orders-list");
 const refreshCustomers = document.querySelector("#refresh-customers");
 const customerSearch = document.querySelector("#customer-search");
 const customerBalanceFilter = document.querySelector("#customer-balance-filter");
@@ -39,6 +42,10 @@ const walletTopupSubmit = document.querySelector("#wallet-topup-submit");
 const walletRefundSubmit = document.querySelector("#wallet-refund-submit");
 const walletWelcomeBonus = document.querySelector("#wallet-welcome-bonus");
 const walletTopupPreview = document.querySelector("#wallet-topup-preview");
+const walletOfferingForm = document.querySelector("#wallet-offering-form");
+const walletOfferingAmount = document.querySelector("#wallet-offering-amount");
+const walletOfferingNote = document.querySelector("#wallet-offering-note");
+const walletOfferingSubmit = document.querySelector("#wallet-offering-submit");
 const walletMessage = document.querySelector("#wallet-message");
 const walletTransactions = document.querySelector("#wallet-transactions");
 
@@ -91,6 +98,8 @@ const PAYMENT_LABELS = {
 };
 
 let orders = [];
+let archivedOrders = [];
+let archivedOrdersOpen = false;
 let realtimeChannel = null;
 let pendingLoginError = "";
 let receiptSettings = { ...window.elimReceipt.defaultSettings };
@@ -191,7 +200,9 @@ function renderOrders() {
   }
 
   ordersList.className = "orders-list";
-  ordersList.innerHTML = orders.map((order) => `
+  ordersList.innerHTML = orders.map((order) => {
+    const canArchive = order.status === "completed" && order.print_status === "printed";
+    return `
     <article class="order-card">
       <div class="order-topline">
         <h3>Order #${escapeHtml(order.order_number)}</h3>
@@ -233,6 +244,46 @@ function renderOrders() {
             aria-pressed="${order.status === status}"
           >${statusLabel(status)}</button>
         `).join("")}
+      </div>
+      <button
+        class="archive-order-button"
+        type="button"
+        data-archive-order-id="${escapeHtml(order.id)}"
+        ${canArchive ? "" : "disabled"}
+        title="${canArchive ? "Move this order to Archived Orders" : "Complete and successfully print this order before archiving"}"
+      >${canArchive ? "Archive order" : "Archive after Completed + Printed"}</button>
+    </article>
+  `;
+  }).join("");
+}
+
+function renderArchivedOrders() {
+  if (!archivedOrders.length) {
+    archivedOrdersList.className = "orders-list archived-orders-list empty-state";
+    archivedOrdersList.textContent = "No archived orders yet.";
+    return;
+  }
+
+  archivedOrdersList.className = "orders-list archived-orders-list";
+  archivedOrdersList.innerHTML = archivedOrders.map((order) => `
+    <article class="order-card archived-order-card">
+      <div class="order-topline">
+        <h3>Order #${escapeHtml(order.order_number)}</h3>
+        <span class="status-badge completed">Archived</span>
+      </div>
+      <p class="order-meta">${escapeHtml(order.customer_name)} · ${formatTime(order.created_at)}</p>
+      <p class="order-payment">Payment: <strong>${escapeHtml(PAYMENT_LABELS[order.payment_method] || "Not recorded")}</strong></p>
+      <ul class="order-items">
+        ${(order.order_items || []).map((item) => `
+          <li>
+            <strong>${escapeHtml(item.quantity)} x ${escapeHtml(orderItemLabel(item))}</strong>
+            <span>${formatEuro(item.unit_price)}</span>
+          </li>
+        `).join("")}
+      </ul>
+      <div class="order-footer">
+        <p class="order-total">${formatEuro(order.total_price)}</p>
+        <small>Archived ${formatTime(order.archived_at)}</small>
       </div>
     </article>
   `).join("");
@@ -422,6 +473,7 @@ async function changeCustomerBalance(amount, transactionType = "topup") {
   walletTopupSubmit.disabled = true;
   walletRefundSubmit.disabled = true;
   walletWelcomeBonus.disabled = true;
+  walletOfferingSubmit.disabled = true;
   const expectedBonus = numericAmount >= 10 ? Math.round(numericAmount * 10) / 100 : 0;
   const expectedCredit = numericAmount + expectedBonus;
   setMessage(
@@ -445,6 +497,7 @@ async function changeCustomerBalance(amount, transactionType = "topup") {
   walletTopupSubmit.disabled = false;
   walletRefundSubmit.disabled = false;
   walletWelcomeBonus.disabled = selectedCustomerHasWelcomeBonus;
+  walletOfferingSubmit.disabled = false;
 
   if (error) {
     console.error("Could not add customer balance:", error);
@@ -494,6 +547,7 @@ async function applyWelcomeBonus() {
   walletWelcomeBonus.disabled = true;
   walletTopupSubmit.disabled = true;
   walletRefundSubmit.disabled = true;
+  walletOfferingSubmit.disabled = true;
   setMessage(walletMessage, `Applying the €3 Willkommensrabatt to ${customer.display_name}...`);
 
   const { data, error } = await window.elimSupabase.rpc("staff_apply_welcome_bonus", {
@@ -503,6 +557,7 @@ async function applyWelcomeBonus() {
 
   walletTopupSubmit.disabled = false;
   walletRefundSubmit.disabled = false;
+  walletOfferingSubmit.disabled = false;
   if (error) {
     console.error("Could not apply welcome bonus:", error);
     walletWelcomeBonus.disabled = selectedCustomerHasWelcomeBonus;
@@ -517,6 +572,54 @@ async function applyWelcomeBonus() {
   ));
   walletTopupNote.value = "";
   setMessage(walletMessage, `Willkommensrabatt €3 credited. New balance: ${formatEuro(newBalance)}.`);
+  renderCustomerList();
+  renderSelectedCustomer();
+  await loadWalletTransactions(customer.user_id);
+}
+
+async function recordCustomerOffering(event) {
+  event.preventDefault();
+  const customer = selectedCustomer();
+  const amount = Number(walletOfferingAmount.value);
+  if (!customer || !Number.isFinite(amount) || amount <= 0 || amount > 10000) {
+    setMessage(walletMessage, "Enter an offering amount greater than €0 and no more than €10,000.", true);
+    return;
+  }
+  if (amount > customer.balance) {
+    setMessage(walletMessage, `Offering cannot exceed the current balance of ${formatEuro(customer.balance)}.`, true);
+    return;
+  }
+  if (!window.confirm(`Deduct ${formatEuro(amount)} as an offering from ${customer.display_name}?`)) return;
+
+  walletOfferingSubmit.disabled = true;
+  walletTopupSubmit.disabled = true;
+  walletRefundSubmit.disabled = true;
+  walletWelcomeBonus.disabled = true;
+  setMessage(walletMessage, `Recording ${formatEuro(amount)} offering for ${customer.display_name}...`);
+
+  const { data, error } = await window.elimSupabase.rpc("staff_record_offering", {
+    p_customer_user_id: customer.user_id,
+    p_amount: amount,
+    p_note: walletOfferingNote.value.trim() || null
+  });
+
+  walletOfferingSubmit.disabled = false;
+  walletTopupSubmit.disabled = false;
+  walletRefundSubmit.disabled = false;
+  walletWelcomeBonus.disabled = selectedCustomerHasWelcomeBonus;
+  if (error) {
+    console.error("Could not record offering:", error);
+    setMessage(walletMessage, `Could not record offering: ${error.message}`, true);
+    return;
+  }
+
+  const newBalance = Number(data?.balance || 0);
+  customers = customers.map((entry) => (
+    entry.user_id === customer.user_id ? { ...entry, balance: newBalance } : entry
+  ));
+  walletOfferingAmount.value = "";
+  walletOfferingNote.value = "";
+  setMessage(walletMessage, `Offering ${formatEuro(amount)} recorded. New balance: ${formatEuro(newBalance)}.`);
   renderCustomerList();
   renderSelectedCustomer();
   await loadWalletTransactions(customer.user_id);
@@ -725,50 +828,67 @@ async function loadOrders({ processPrints = true } = {}) {
   setMessage(staffMessage, realtimeChannel ? "Live updates connected." : "");
   renderOrders();
   renderReceiptPreview();
+  await loadArchivedOrderCount();
+  if (archivedOrdersOpen) await loadArchivedOrders();
   if (processPrints) queuePendingAutomaticPrints();
 }
 
-function berlinDateString(date = new Date()) {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Europe/Berlin",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit"
-  }).formatToParts(date);
-  const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${values.year}-${values.month}-${values.day}`;
-}
-
-async function archiveFinishedOrders() {
-  const orderDate = archiveOrderDate.value;
-  if (!orderDate) {
-    setMessage(staffMessage, "Choose the finished service date first.", true);
+async function loadArchivedOrderCount() {
+  const { count, error } = await window.elimSupabase
+    .from("orders")
+    .select("id", { count: "exact", head: true })
+    .not("archived_at", "is", null);
+  if (error) {
+    console.error("Could not count archived orders:", error);
     return;
   }
-  if (!window.confirm(`Archive completed and printed orders from ${orderDate}? They will be hidden from Live Orders but retained in Supabase.`)) return;
+  archivedOrdersCount.textContent = String(count || 0);
+}
 
-  archiveCompletedOrders.disabled = true;
-  setMessage(staffMessage, `Archiving finished orders from ${orderDate}...`);
-  const { data, error } = await window.elimSupabase.rpc("staff_archive_completed_orders", {
-    p_order_date: orderDate,
-    p_timezone: "Europe/Berlin"
-  });
-  archiveCompletedOrders.disabled = false;
+async function loadArchivedOrders() {
+  setMessage(archivedOrdersMessage, "Loading archived orders...");
+  const { data, error } = await window.elimSupabase
+    .from("orders")
+    .select("id, order_number, customer_name, total_price, payment_method, status, created_at, archived_at, order_items(category, item_name, variant, quantity, unit_price)")
+    .not("archived_at", "is", null)
+    .order("archived_at", { ascending: false })
+    .limit(250);
 
   if (error) {
-    console.error("Could not archive finished orders:", error);
-    setMessage(staffMessage, `Could not archive orders: ${error.message}`, true);
+    console.error("Could not load archived orders:", error);
+    setMessage(archivedOrdersMessage, `Could not load archived orders: ${error.message}`, true);
+    return;
+  }
+  archivedOrders = data || [];
+  setMessage(archivedOrdersMessage, `${archivedOrders.length} archived order(s).`);
+  renderArchivedOrders();
+}
+
+async function archiveOrder(orderId) {
+  const order = orders.find((entry) => String(entry.id) === String(orderId));
+  if (!order) return;
+  if (!window.confirm(`Move Order #${order.order_number} to Archived Orders?`)) return;
+
+  setMessage(staffMessage, `Archiving Order #${order.order_number}...`);
+  const { data, error } = await window.elimSupabase.rpc("staff_archive_order", {
+    p_order_id: String(orderId)
+  });
+
+  if (error || !data?.archived) {
+    console.error("Could not archive order:", error || data);
+    setMessage(staffMessage, `Could not archive Order #${order.order_number}: ${error?.message || "Order was not archived"}`, true);
     return;
   }
 
   await loadOrders({ processPrints: false });
-  const archived = Number(data?.archived || 0);
-  const remaining = Number(data?.remaining || 0);
-  setMessage(
-    staffMessage,
-    `${archived} completed order(s) archived. ${remaining} active or unresolved order(s) from that date remain visible.`,
-    remaining > 0
-  );
+  setMessage(staffMessage, `Order #${order.order_number} moved to Archived Orders.`);
+}
+
+async function toggleArchivedOrderPanel() {
+  archivedOrdersOpen = !archivedOrdersOpen;
+  archivedOrdersContent.hidden = !archivedOrdersOpen;
+  toggleArchivedOrders.setAttribute("aria-expanded", String(archivedOrdersOpen));
+  if (archivedOrdersOpen) await loadArchivedOrders();
 }
 
 async function loadOrderForPrint(orderId) {
@@ -1023,6 +1143,12 @@ ordersList.addEventListener("click", (event) => {
     return;
   }
 
+  const archiveButton = event.target.closest("[data-archive-order-id]");
+  if (archiveButton && !archiveButton.disabled) {
+    archiveOrder(archiveButton.dataset.archiveOrderId);
+    return;
+  }
+
   const statusButton = event.target.closest("[data-order-id]");
   if (statusButton) updateOrderStatus(statusButton.dataset.orderId, statusButton.dataset.status);
 });
@@ -1053,6 +1179,7 @@ walletTopupForm.addEventListener("submit", (event) => {
 walletRefundSubmit.addEventListener("click", () => {
   changeCustomerBalance(walletTopupAmount.value, "refund");
 });
+walletOfferingForm.addEventListener("submit", recordCustomerOffering);
 
 receiptSettingsForm.addEventListener("submit", saveReceiptSettings);
 receiptSettingsForm.addEventListener("input", () => renderReceiptPreview());
@@ -1087,7 +1214,7 @@ window.elimPrinter.onStatus((status) => {
 
 loginForm.addEventListener("submit", signInStaff);
 refreshOrders.addEventListener("click", () => loadOrders());
-archiveCompletedOrders.addEventListener("click", archiveFinishedOrders);
+toggleArchivedOrders.addEventListener("click", toggleArchivedOrderPanel);
 staffLogout.addEventListener("click", async () => {
   staffLogout.disabled = true;
   await stopRealtime();
@@ -1101,11 +1228,10 @@ staffLogout.addEventListener("click", async () => {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20261105");
+    navigator.serviceWorker.register("service-worker.js?v=20261106");
   });
 }
 
-archiveOrderDate.value = berlinDateString();
 updateTopupPreview();
 fillReceiptSettingsForm(receiptSettings);
 initializeStaffApp();
