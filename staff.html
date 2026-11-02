@@ -7,129 +7,136 @@
     <meta name="description" content="Elim Café staff order dashboard.">
     <title>Elim Café Staff</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="css/styles.css?v=20261107">
+    <link rel="stylesheet" href="css/styles.css?v=20261108">
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script defer src="js/supabase-config.js?v=20261025"></script>
     <script defer src="js/menu.js?v=20261009"></script>
     <script defer src="js/receipt.js?v=20261104"></script>
     <script defer src="js/printer-bridge.js?v=20261018"></script>
-    <script defer src="js/printer-test.js?v=20261018"></script>
-    <script defer src="js/staff.js?v=20261107"></script>
-    <script defer src="js/staff-order.js?v=20261105"></script>
+    <script defer src="js/staff-i18n.js?v=20261108"></script>
+    <script defer src="js/printer-test.js?v=20261108"></script>
+    <script defer src="js/staff.js?v=20261108"></script>
+    <script defer src="js/staff-order.js?v=20261108"></script>
   </head>
   <body class="staff-page">
     <header class="app-header">
       <div>
-        <p class="eyebrow">Tablet dashboard</p>
+        <p class="eyebrow" data-staff-i18n="header.dashboard">Tablet dashboard</p>
         <h1>Elim Café Staff</h1>
       </div>
       <div class="staff-header-actions">
-        <a class="staff-link" href="index.html">Menu</a>
-        <button id="staff-logout" class="secondary-button small-button" type="button" hidden>Log out</button>
+        <div class="language-selector staff-language-selector" role="group" data-staff-i18n-aria-label="language.selector" aria-label="Choose language">
+          <button type="button" data-staff-language="de" aria-pressed="false">DE</button>
+          <button type="button" data-staff-language="en" aria-pressed="false">EN</button>
+          <button type="button" data-staff-language="ko" aria-pressed="false">KO</button>
+          <button type="button" data-staff-language="zh" aria-pressed="false">中文</button>
+        </div>
+        <a class="staff-link" href="index.html" data-staff-i18n="common.menu">Menu</a>
+        <button id="staff-logout" class="secondary-button small-button" type="button" hidden data-staff-i18n="auth.logout">Log out</button>
       </div>
     </header>
 
     <main class="staff-layout">
       <section id="staff-login-panel" class="panel staff-login-panel" aria-labelledby="staff-login-heading">
-        <p class="eyebrow">Staff access</p>
-        <h2 id="staff-login-heading">Sign in to the dashboard</h2>
-        <p>Enter the shared café staff email and password.</p>
+        <p class="eyebrow" data-staff-i18n="auth.access">Staff access</p>
+        <h2 id="staff-login-heading" data-staff-i18n="auth.title">Sign in to the dashboard</h2>
+        <p data-staff-i18n="auth.instructions">Enter the shared café staff email and password.</p>
         <form id="staff-login-form">
           <label class="field">
-            <span>Staff email</span>
-            <input id="staff-email" type="email" autocomplete="email" inputmode="email" required placeholder="Staff email address">
+            <span data-staff-i18n="auth.email">Staff email</span>
+            <input id="staff-email" type="email" autocomplete="email" inputmode="email" required placeholder="Staff email address" data-staff-i18n-placeholder="auth.emailPlaceholder">
           </label>
           <label class="field">
-            <span>Password</span>
-            <input id="staff-password" type="password" autocomplete="current-password" required placeholder="Password">
+            <span data-staff-i18n="auth.password">Password</span>
+            <input id="staff-password" type="password" autocomplete="current-password" required placeholder="Password" data-staff-i18n-placeholder="auth.password">
           </label>
-          <button id="staff-sign-in" class="primary-button" type="submit">Sign in</button>
+          <button id="staff-sign-in" class="primary-button" type="submit" data-staff-i18n="auth.signin">Sign in</button>
         </form>
         <div id="login-message" class="form-message" role="status"></div>
       </section>
 
       <section id="staff-dashboard" class="panel dashboard-panel" aria-labelledby="orders-heading" hidden>
         <nav class="staff-tabs" aria-label="Staff dashboard sections">
-          <button type="button" data-staff-view="orders" aria-pressed="true">Orders</button>
-          <button type="button" data-staff-view="customers" aria-pressed="false">Customers</button>
-          <button type="button" data-staff-view="receipt" aria-pressed="false">Receipt Settings</button>
-          <button type="button" data-staff-view="guest-order" aria-pressed="false">Guest Order</button>
+          <button type="button" data-staff-view="orders" aria-pressed="true" data-staff-i18n="tabs.orders">Orders</button>
+          <button type="button" data-staff-view="customers" aria-pressed="false" data-staff-i18n="tabs.customers">Customers</button>
+          <button type="button" data-staff-view="receipt" aria-pressed="false" data-staff-i18n="tabs.receipt">Receipt Settings</button>
+          <button type="button" data-staff-view="guest-order" aria-pressed="false" data-staff-i18n="tabs.guest">Guest Order</button>
         </nav>
 
         <div id="staff-orders-view">
         <section class="printer-panel" data-staff-section="orders" aria-labelledby="printer-heading">
           <div class="printer-status-row">
             <div>
-              <p class="eyebrow">Receipt printer</p>
+              <p class="eyebrow" data-staff-i18n="printer.eyebrow">Receipt printer</p>
               <h2 id="printer-heading">58mm POS-58</h2>
             </div>
             <div id="printer-status" class="printer-status unavailable" role="status">
               <span class="printer-status-dot" aria-hidden="true"></span>
-              <span id="printer-status-text">Bridge unavailable</span>
+               <span id="printer-status-text" data-staff-i18n="printer.unavailable">Bridge unavailable</span>
             </div>
           </div>
           <div class="printer-actions">
-            <button id="printer-connect" class="secondary-button small-button" type="button">Connect</button>
-            <button id="printer-disconnect" class="secondary-button small-button" type="button" disabled>Disconnect</button>
-            <button id="printer-test-print" class="primary-button small-button" type="button" disabled>Test print</button>
+            <button id="printer-connect" class="secondary-button small-button" type="button" data-staff-i18n="printer.connect">Connect</button>
+            <button id="printer-disconnect" class="secondary-button small-button" type="button" disabled data-staff-i18n="printer.disconnect">Disconnect</button>
+            <button id="printer-test-print" class="primary-button small-button" type="button" disabled data-staff-i18n="printer.test">Test print</button>
           </div>
           <p id="printer-message" class="form-message" role="status"></p>
         </section>
 
         <div id="printer-warning" class="printer-warning" data-staff-section="orders" role="alert" hidden>
-          Automatic printing is paused. Connect the receipt printer to print pending orders.
+          <span data-staff-i18n="printer.warning">Automatic printing is paused. Connect the receipt printer to print pending orders.</span>
         </div>
 
         <section id="staff-receipt-view" class="receipt-settings" aria-labelledby="receipt-settings-heading" hidden>
           <div class="section-heading">
             <div>
-              <p class="eyebrow">Receipt layout</p>
-              <h2 id="receipt-settings-heading">Receipt Settings</h2>
+              <p class="eyebrow" data-staff-i18n="receipt.layout">Receipt layout</p>
+              <h2 id="receipt-settings-heading" data-staff-i18n="tabs.receipt">Receipt Settings</h2>
             </div>
           </div>
 
           <form id="receipt-settings-form" class="receipt-settings-form">
             <div class="receipt-settings-fields">
               <label class="field">
-                <span>Café name</span>
+                 <span data-staff-i18n="receipt.cafeName">Café name</span>
                 <input id="receipt-cafe-name" type="text" maxlength="60" required>
               </label>
               <label class="field">
-                <span>Header text</span>
+                 <span data-staff-i18n="receipt.headerText">Header text</span>
                 <textarea id="receipt-header-text" rows="2" maxlength="240"></textarea>
               </label>
               <label class="field">
-                <span>Footer text</span>
+                 <span data-staff-i18n="receipt.footerText">Footer text</span>
                 <textarea id="receipt-footer-text" rows="2" maxlength="240"></textarea>
               </label>
               <label class="field">
-                <span>Additional text</span>
-                <textarea id="receipt-custom-text" rows="2" maxlength="240" placeholder="Optional message printed before the footer"></textarea>
+                 <span data-staff-i18n="receipt.additionalText">Additional text</span>
+                 <textarea id="receipt-custom-text" rows="2" maxlength="240" placeholder="Optional message printed before the footer" data-staff-i18n-placeholder="receipt.additionalPlaceholder"></textarea>
               </label>
               <label class="field">
-                <span>Separator style</span>
+                 <span data-staff-i18n="receipt.separator">Separator style</span>
                 <select id="receipt-separator-style">
-                  <option value="dash">Dashed</option>
-                  <option value="solid">Solid</option>
-                  <option value="double">Double</option>
+                   <option value="dash" data-staff-i18n="receipt.dashed">Dashed</option>
+                   <option value="solid" data-staff-i18n="receipt.solid">Solid</option>
+                   <option value="double" data-staff-i18n="receipt.double">Double</option>
                 </select>
               </label>
             </div>
 
             <fieldset class="receipt-options">
-              <legend>Show on receipt</legend>
-              <label><input id="receipt-show-customer" type="checkbox"> Customer name</label>
-              <label><input id="receipt-show-order-number" type="checkbox"> Order number</label>
-              <label><input id="receipt-show-payment" type="checkbox"> Payment method</label>
-              <label><input id="receipt-show-time" type="checkbox"> Order time</label>
-              <label><input id="receipt-show-total" type="checkbox"> Total</label>
-              <label><input id="receipt-show-category-subtotal" type="checkbox"> Category subtotal</label>
+               <legend data-staff-i18n="receipt.showOn">Show on receipt</legend>
+               <label><input id="receipt-show-customer" type="checkbox"> <span data-staff-i18n="receipt.customerName">Customer name</span></label>
+               <label><input id="receipt-show-order-number" type="checkbox"> <span data-staff-i18n="receipt.orderNumber">Order number</span></label>
+               <label><input id="receipt-show-payment" type="checkbox"> <span data-staff-i18n="receipt.payment">Payment method</span></label>
+               <label><input id="receipt-show-time" type="checkbox"> <span data-staff-i18n="receipt.orderTime">Order time</span></label>
+               <label><input id="receipt-show-total" type="checkbox"> <span data-staff-i18n="common.total">Total</span></label>
+               <label><input id="receipt-show-category-subtotal" type="checkbox"> <span data-staff-i18n="receipt.categorySubtotal">Category subtotal</span></label>
             </fieldset>
 
             <fieldset class="receipt-format-editor">
-              <legend>Text format</legend>
+               <legend data-staff-i18n="receipt.textFormat">Text format</legend>
               <div class="receipt-format-head" aria-hidden="true">
-                <span>Section</span><span>Size</span><span>Align</span><span>Bold</span><span>Print</span>
+                 <span data-staff-i18n="receipt.section">Section</span><span data-staff-i18n="receipt.size">Size</span><span data-staff-i18n="receipt.align">Align</span><span data-staff-i18n="receipt.bold">Bold</span><span data-staff-i18n="receipt.print">Print</span>
               </div>
               <div class="receipt-format-row" data-format-row="cafe_name">
                 <strong>Café name</strong>
@@ -190,9 +197,9 @@
             </fieldset>
 
             <div class="receipt-settings-actions">
-              <button id="receipt-save" class="primary-button small-button" type="submit">Save settings</button>
-              <button id="receipt-preview-button" class="secondary-button small-button" type="button">Preview</button>
-              <button id="receipt-test-print" class="secondary-button small-button" type="button" disabled>Test print preview</button>
+               <button id="receipt-save" class="primary-button small-button" type="submit" data-staff-i18n="receipt.save">Save settings</button>
+               <button id="receipt-preview-button" class="secondary-button small-button" type="button" data-staff-i18n="receipt.preview">Preview</button>
+               <button id="receipt-test-print" class="secondary-button small-button" type="button" disabled data-staff-i18n="receipt.testPreview">Test print preview</button>
             </div>
           </form>
           <p id="receipt-settings-message" class="form-message" role="status"></p>
@@ -202,21 +209,21 @@
         <div id="staff-live-orders-view" data-staff-section="orders">
         <div class="section-heading">
           <div>
-            <p class="eyebrow">Live orders</p>
-            <h2 id="orders-heading">Incoming Orders</h2>
+             <p class="eyebrow" data-staff-i18n="orders.live">Live orders</p>
+             <h2 id="orders-heading" data-staff-i18n="orders.incoming">Incoming Orders</h2>
           </div>
-          <button id="refresh-orders" class="secondary-button small-button" type="button">Refresh</button>
+           <button id="refresh-orders" class="secondary-button small-button" type="button" data-staff-i18n="common.refresh">Refresh</button>
         </div>
         <div id="staff-message" class="form-message" role="status"></div>
         <div id="orders-list" class="orders-list empty-state">
-          Waiting for orders...
+           <span data-staff-i18n="orders.waiting">Waiting for orders...</span>
         </div>
 
         <section class="archived-orders-panel" aria-labelledby="archived-orders-heading">
           <button id="toggle-archived-orders" class="archive-toggle-button" type="button" aria-expanded="false" aria-controls="archived-orders-content">
             <span>
-              <span class="eyebrow">Previous archive</span>
-              <strong id="archived-orders-heading">Archived Orders</strong>
+               <span class="eyebrow" data-staff-i18n="archive.previous">Previous archive</span>
+               <strong id="archived-orders-heading" data-staff-i18n="archive.title">Archived Orders</strong>
             </span>
             <span><span id="archived-orders-count">0</span> order(s) ▾</span>
           </button>
@@ -231,21 +238,21 @@
         <section id="staff-customers-view" class="staff-customers-view" aria-labelledby="customers-heading" hidden>
           <div class="section-heading">
             <div>
-              <p class="eyebrow">Prepaid accounts</p>
-              <h2 id="customers-heading">Customers</h2>
+               <p class="eyebrow" data-staff-i18n="customers.prepaid">Prepaid accounts</p>
+               <h2 id="customers-heading" data-staff-i18n="tabs.customers">Customers</h2>
             </div>
-            <button id="refresh-customers" class="secondary-button small-button" type="button">Refresh</button>
+             <button id="refresh-customers" class="secondary-button small-button" type="button" data-staff-i18n="common.refresh">Refresh</button>
           </div>
 
           <label class="field customer-search-field">
-            <span>Search by name or email</span>
-            <input id="customer-search" type="search" autocomplete="off" placeholder="Start typing a name or email">
+             <span data-staff-i18n="customers.search">Search by name or email</span>
+             <input id="customer-search" type="search" autocomplete="off" placeholder="Start typing a name or email" data-staff-i18n-placeholder="customers.searchPlaceholder">
           </label>
           <label class="field customer-balance-filter-field">
-            <span>Balance filter</span>
+             <span data-staff-i18n="customers.filter">Balance filter</span>
             <select id="customer-balance-filter">
-              <option value="all">All customers</option>
-              <option value="outstanding">Outstanding balances</option>
+               <option value="all" data-staff-i18n="customers.all">All customers</option>
+               <option value="outstanding" data-staff-i18n="customers.outstanding">Outstanding balances</option>
             </select>
           </label>
           <p id="customers-message" class="form-message" role="status"></p>
@@ -256,7 +263,7 @@
             <section id="customer-wallet-detail" class="customer-wallet-detail" hidden aria-labelledby="selected-customer-name">
               <div class="customer-wallet-heading">
                 <div>
-                  <p class="eyebrow">Selected customer</p>
+                   <p class="eyebrow" data-staff-i18n="customers.selected">Selected customer</p>
                   <h3 id="selected-customer-name"></h3>
                   <p id="selected-customer-email" class="customer-detail-email"></p>
                 </div>
@@ -265,48 +272,48 @@
 
               <form id="wallet-topup-form" class="wallet-topup-form">
                 <fieldset>
-                  <legend>Add balance</legend>
+                   <legend data-staff-i18n="wallet.addBalance">Add balance</legend>
                   <div class="quick-topup-buttons">
-                    <button id="wallet-welcome-bonus" class="secondary-button small-button welcome-bonus-button" type="button">Willkommensrabatt +€3</button>
-                    <button class="secondary-button small-button" type="button" data-topup-amount="10">Pay €10 → Credit €11</button>
-                    <button class="secondary-button small-button" type="button" data-topup-amount="20">Pay €20 → Credit €22</button>
-                    <button class="secondary-button small-button" type="button" data-topup-amount="50">Pay €50 → Credit €55</button>
+                     <button id="wallet-welcome-bonus" class="secondary-button small-button welcome-bonus-button" type="button" data-staff-i18n="wallet.welcome">Willkommensrabatt +€3</button>
+                     <button class="secondary-button small-button" type="button" data-topup-amount="10" data-staff-i18n="wallet.topup10">Pay €10 → Credit €11</button>
+                     <button class="secondary-button small-button" type="button" data-topup-amount="20" data-staff-i18n="wallet.topup20">Pay €20 → Credit €22</button>
+                     <button class="secondary-button small-button" type="button" data-topup-amount="50" data-staff-i18n="wallet.topup50">Pay €50 → Credit €55</button>
                   </div>
                   <label class="field">
-                    <span>Custom amount</span>
+                     <span data-staff-i18n="wallet.customAmount">Custom amount</span>
                     <input id="wallet-topup-amount" type="number" inputmode="decimal" min="0.01" max="10000" step="0.01" placeholder="0.00" required>
-                    <small id="wallet-topup-preview" class="topup-preview">10% bonus applies to top-ups of €10 or more.</small>
+                     <small id="wallet-topup-preview" class="topup-preview" data-staff-i18n="wallet.bonusRule">10% bonus applies to top-ups of €10 or more.</small>
                   </label>
                   <label class="field">
-                    <span>Optional note</span>
-                    <textarea id="wallet-topup-note" rows="2" maxlength="500" placeholder="Cash top-up, event credit, etc."></textarea>
+                     <span data-staff-i18n="common.optionalNote">Optional note</span>
+                     <textarea id="wallet-topup-note" rows="2" maxlength="500" placeholder="Cash top-up, event credit, etc." data-staff-i18n-placeholder="wallet.notePlaceholder"></textarea>
                   </label>
                   <div class="wallet-action-buttons">
-                    <button id="wallet-topup-submit" class="primary-button small-button" type="submit">Add balance</button>
-                    <button id="wallet-refund-submit" class="secondary-button small-button" type="button">Record refund</button>
+                     <button id="wallet-topup-submit" class="primary-button small-button" type="submit" data-staff-i18n="wallet.addBalance">Add balance</button>
+                     <button id="wallet-refund-submit" class="secondary-button small-button" type="button" data-staff-i18n="wallet.refund">Record refund</button>
                   </div>
                 </fieldset>
               </form>
 
               <form id="wallet-offering-form" class="wallet-offering-form">
                 <fieldset>
-                  <legend>Offering / 헌금</legend>
-                  <p>Deduct an offering from this customer’s existing Elim Balance. The balance cannot go below €0 for an offering.</p>
+                   <legend data-staff-i18n="offering.title">Offering / 헌금</legend>
+                   <p data-staff-i18n="offering.help">Deduct an offering from this customer’s existing Elim Balance. The balance cannot go below €0 for an offering.</p>
                   <label class="field">
-                    <span>Offering amount</span>
+                     <span data-staff-i18n="offering.amount">Offering amount</span>
                     <input id="wallet-offering-amount" type="number" inputmode="decimal" min="0.01" max="10000" step="0.01" placeholder="0.00" required>
                   </label>
                   <label class="field">
-                    <span>Optional note</span>
-                    <textarea id="wallet-offering-note" rows="2" maxlength="500" placeholder="Sunday offering, thanksgiving offering, etc."></textarea>
+                     <span data-staff-i18n="common.optionalNote">Optional note</span>
+                     <textarea id="wallet-offering-note" rows="2" maxlength="500" placeholder="Sunday offering, thanksgiving offering, etc." data-staff-i18n-placeholder="offering.notePlaceholder"></textarea>
                   </label>
-                  <button id="wallet-offering-submit" class="primary-button small-button" type="submit">Record offering</button>
+                   <button id="wallet-offering-submit" class="primary-button small-button" type="submit" data-staff-i18n="offering.record">Record offering</button>
                 </fieldset>
               </form>
               <p id="wallet-message" class="form-message" role="status"></p>
 
               <div class="transaction-heading">
-                <h3>Transaction history</h3>
+                 <h3 data-staff-i18n="wallet.history">Transaction history</h3>
               </div>
               <div id="wallet-transactions" class="wallet-transactions empty-state">No transactions yet.</div>
             </section>
@@ -316,12 +323,12 @@
         <section id="staff-guest-order-view" class="staff-guest-order-view" aria-labelledby="guest-order-heading" hidden>
           <div class="section-heading guest-order-heading">
             <div>
-              <p class="eyebrow">Staff-entered counter order</p>
-              <h2 id="guest-order-heading">Guest Order</h2>
-              <p>Use this screen when a guest orders directly at the café without the customer app.</p>
+               <p class="eyebrow" data-staff-i18n="guest.eyebrow">Staff-entered counter order</p>
+               <h2 id="guest-order-heading" data-staff-i18n="tabs.guest">Guest Order</h2>
+               <p data-staff-i18n="guest.help">Use this screen when a guest orders directly at the café without the customer app.</p>
             </div>
             <div class="guest-account-summary" aria-label="Guest account totals">
-              <span>Guest total</span>
+               <span data-staff-i18n="guest.total">Guest total</span>
               <strong id="guest-account-total">€0.00</strong>
               <small><span id="guest-account-order-count">0</span> order(s)</small>
             </div>
@@ -329,35 +336,35 @@
 
           <div class="staff-order-layout">
             <section class="staff-order-menu-panel" aria-labelledby="staff-order-menu-heading">
-              <h3 id="staff-order-menu-heading">Menu</h3>
+               <h3 id="staff-order-menu-heading" data-staff-i18n="common.menu">Menu</h3>
               <div id="staff-order-menu" class="staff-order-menu"></div>
             </section>
 
             <aside class="staff-order-cart-panel" aria-labelledby="staff-order-cart-heading">
               <div class="staff-order-cart-heading">
-                <h3 id="staff-order-cart-heading">Guest Cart</h3>
+                 <h3 id="staff-order-cart-heading" data-staff-i18n="guest.cart">Guest Cart</h3>
                 <strong id="staff-order-cart-count" class="pill">0 items</strong>
               </div>
               <div id="staff-order-cart-items" class="staff-order-cart-items empty-state">Selected drinks will appear here.</div>
               <div class="total-row">
-                <span>Total</span>
+                 <span data-staff-i18n="common.total">Total</span>
                 <strong id="staff-order-total">€0.00</strong>
               </div>
 
               <label class="field">
-                <span>Name on order</span>
+                 <span data-staff-i18n="guest.name">Name on order</span>
                 <input id="staff-order-customer-name" type="text" maxlength="100" value="Guest" required>
               </label>
 
               <fieldset class="staff-order-payment-options">
-                <legend>Payment method</legend>
-                <label><input type="radio" name="staff-order-payment" value="cash" checked> Cash</label>
+                 <legend data-staff-i18n="receipt.payment">Payment method</legend>
+                 <label><input type="radio" name="staff-order-payment" value="cash" checked> <span data-staff-i18n="payment.cash">Cash</span></label>
                 <label><input type="radio" name="staff-order-payment" value="paypal"> PayPal</label>
-                <label><input type="radio" name="staff-order-payment" value="sepa"> SEPA bank transfer</label>
+                 <label><input type="radio" name="staff-order-payment" value="sepa"> <span data-staff-i18n="payment.sepa">SEPA bank transfer</span></label>
               </fieldset>
 
-              <button id="staff-order-submit" class="primary-button" type="button" disabled>Place Guest Order</button>
-              <button id="staff-order-clear" class="secondary-button" type="button" disabled>Clear Cart</button>
+               <button id="staff-order-submit" class="primary-button" type="button" disabled data-staff-i18n="guest.place">Place Guest Order</button>
+               <button id="staff-order-clear" class="secondary-button" type="button" disabled data-staff-i18n="guest.clear">Clear Cart</button>
               <p id="staff-order-message" class="form-message" role="status"></p>
             </aside>
           </div>

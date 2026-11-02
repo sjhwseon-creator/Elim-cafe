@@ -5,6 +5,8 @@
   const connectButton = document.querySelector("#printer-connect");
   const disconnectButton = document.querySelector("#printer-disconnect");
   const testPrintButton = document.querySelector("#printer-test-print");
+  const t = (key, variables = {}) => window.ELIM_STAFF_I18N?.t(key, variables) || key;
+  let currentStatus = { state: "unavailable" };
 
   if (!statusElement || !window.elimPrinter || !window.elimReceipt) return;
 
@@ -14,11 +16,13 @@
   }
 
   function renderStatus(status) {
+    currentStatus = status;
     const state = status.state || "unavailable";
     statusElement.className = `printer-status ${state}`;
+    const stateLabel = t(`printer.state.${state}`);
     statusText.textContent = status.deviceName
-      ? `${state.charAt(0).toUpperCase() + state.slice(1)} · ${status.deviceName}`
-      : state.charAt(0).toUpperCase() + state.slice(1);
+      ? `${stateLabel} · ${status.deviceName}`
+      : stateLabel;
 
     const connected = state === "connected";
     const busy = state === "connecting" || state === "printing";
@@ -30,7 +34,7 @@
   }
 
   connectButton.addEventListener("click", async () => {
-    setMessage("Opening the Android printer selector...");
+    setMessage(t("printer.opening"));
     try {
       await window.elimPrinter.connect();
     } catch (error) {
@@ -50,11 +54,11 @@
 
   testPrintButton.addEventListener("click", async () => {
     testPrintButton.disabled = true;
-    setMessage("Printing ELIM CAFE test receipt...");
+    setMessage(t("printer.testing"));
 
     try {
       await window.elimPrinter.print(window.elimReceipt.buildTestReceiptBytes());
-      renderStatus({ state: "connected", message: "Test receipt printed." });
+      renderStatus({ state: "connected", message: t("printer.testSuccess") });
     } catch (error) {
       console.error("Test print failed:", error);
       renderStatus({ state: "error", message: error.message });
@@ -62,6 +66,7 @@
   });
 
   window.elimPrinter.onStatus(renderStatus);
+  document.addEventListener("elim:staff-languagechange", () => renderStatus(currentStatus));
   window.elimPrinter.getStatus().catch((error) => {
     renderStatus({ state: "error", message: error.message });
   });

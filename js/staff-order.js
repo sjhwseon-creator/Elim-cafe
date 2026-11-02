@@ -12,6 +12,7 @@
   const guestTotal = document.querySelector("#guest-account-total");
   const guestOrderCount = document.querySelector("#guest-account-order-count");
   const cart = new Map();
+  const t = (key, variables = {}) => window.ELIM_STAFF_I18N?.t(key, variables) || key;
 
   function formatEuro(value) {
     return new Intl.NumberFormat("en-IE", { style: "currency", currency: "EUR" }).format(Number(value));
@@ -74,7 +75,7 @@
   }
 
   function itemLabel(item) {
-    return item.variant ? `${item.name} (${item.variant.toUpperCase()})` : item.name;
+    return item.variant ? `${item.name} (${t(`variant.${item.variant}`)})` : item.name;
   }
 
   function quantityControls(item, variant = null) {
@@ -92,7 +93,7 @@
   function renderMenu() {
     menuRoot.innerHTML = window.ELIM_MENU.map((group) => `
       <section class="staff-order-category category-${group.category.toLowerCase()}">
-        <h4>${escapeHtml(group.category)}</h4>
+        <h4>${escapeHtml(t(`category.${group.category.toLowerCase()}`))}</h4>
         <div class="staff-order-menu-items">
           ${group.items.map((item) => {
             if (item.variants?.length) {
@@ -102,7 +103,7 @@
                   <div class="staff-order-variants">
                     ${item.variants.map((variant) => `
                       <div class="staff-order-variant">
-                        <span>${variant.toUpperCase()} · ${formatEuro(variantPrice(item, variant))}</span>
+                        <span>${escapeHtml(t(`variant.${variant}`))} · ${formatEuro(variantPrice(item, variant))}</span>
                         ${quantityControls(item, variant)}
                       </div>
                     `).join("")}
@@ -125,14 +126,14 @@
   function renderCart() {
     const rows = cartRows();
     const count = rows.reduce((sum, item) => sum + item.quantity, 0);
-    cartCount.textContent = `${count} item${count === 1 ? "" : "s"}`;
+    cartCount.textContent = t("guest.items", { count });
     totalElement.textContent = formatEuro(orderTotal(rows));
     submitButton.disabled = count === 0;
     clearButton.disabled = count === 0;
 
     if (!rows.length) {
       cartRoot.className = "staff-order-cart-items empty-state";
-      cartRoot.textContent = "Selected drinks will appear here.";
+      cartRoot.textContent = t("guest.empty");
       return;
     }
 
@@ -141,7 +142,7 @@
       <article class="staff-order-cart-row">
         <span><strong>${escapeHtml(itemLabel(item))}</strong><small>${item.quantity} × ${formatEuro(item.selectedPrice)}</small></span>
         <strong>${formatEuro(item.quantity * item.selectedPrice)}</strong>
-        <button type="button" data-guest-action="remove" data-item-id="${escapeHtml(item.id)}" data-variant="${item.variant || ""}" aria-label="Remove ${escapeHtml(itemLabel(item))}">×</button>
+        <button type="button" data-guest-action="remove" data-item-id="${escapeHtml(item.id)}" data-variant="${item.variant || ""}" aria-label="${escapeHtml(t("cart.remove"))} ${escapeHtml(itemLabel(item))}">×</button>
       </article>
     `).join("");
   }
@@ -187,7 +188,7 @@
 
     submitButton.disabled = true;
     clearButton.disabled = true;
-    setMessage("Saving Guest order...");
+    setMessage(t("message.savingGuest"));
 
     const { data, error } = await window.elimSupabase.rpc("staff_create_guest_order", {
       p_customer_name: name,
@@ -237,6 +238,10 @@
   clearButton.addEventListener("click", clearCart);
   document.addEventListener("elim:staffviewchange", (event) => {
     if (event.detail?.view === "guest-order") loadGuestAccount();
+  });
+  document.addEventListener("elim:staff-languagechange", () => {
+    renderMenu();
+    renderCart();
   });
 
   renderMenu();

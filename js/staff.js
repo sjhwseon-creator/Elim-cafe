@@ -48,6 +48,7 @@ const walletOfferingNote = document.querySelector("#wallet-offering-note");
 const walletOfferingSubmit = document.querySelector("#wallet-offering-submit");
 const walletMessage = document.querySelector("#wallet-message");
 const walletTransactions = document.querySelector("#wallet-transactions");
+const staffT = (key, variables = {}) => window.ELIM_STAFF_I18N?.t(key, variables) || key;
 
 const receiptFields = {
   cafe_name: document.querySelector("#receipt-cafe-name"),
@@ -90,12 +91,13 @@ const receiptFields = {
 };
 
 const STATUSES = ["new", "preparing", "completed"];
-const PAYMENT_LABELS = {
-  paypal: "PayPal",
-  sepa: "SEPA bank transfer",
-  cash: "Cash",
-  wallet: "Elim Balance"
-};
+function paymentLabel(method) {
+  if (method === "sepa") return staffT("payment.sepa");
+  if (method === "cash") return staffT("payment.cash");
+  if (method === "wallet") return "Elim Balance";
+  if (method === "paypal") return "PayPal";
+  return "-";
+}
 
 let orders = [];
 let archivedOrders = [];
@@ -162,6 +164,8 @@ function rpcFailureMessage(error, fallback) {
 }
 
 function statusLabel(status) {
+  const translated = staffT(`status.${status}`);
+  if (translated !== `status.${status}`) return translated;
   return String(status || "")
     .split("-")
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
@@ -170,16 +174,16 @@ function statusLabel(status) {
 
 function orderItemLabel(item) {
   if (!item.variant) return item.item_name;
-  return `${item.item_name} - ${statusLabel(item.variant)}`;
+  return `${item.item_name} - ${staffT(`variant.${item.variant}`)}`;
 }
 
 function printStatusText(order) {
   if (order.print_status === "printed") {
-    return order.printed_at ? `Printed ${formatClock(order.printed_at)}` : "Printed before tracking";
+    return order.printed_at ? staffT("print.printed", { time: formatClock(order.printed_at) }) : staffT("print.printed", { time: "" });
   }
-  if (order.print_status === "failed") return `Print failed · ${order.print_attempts} attempt(s)`;
-  if (order.print_status === "printing") return "Printing in progress";
-  return "Pending print";
+  if (order.print_status === "failed") return staffT("print.failed", { count: order.print_attempts });
+  if (order.print_status === "printing") return staffT("print.printing");
+  return staffT("print.pending");
 }
 
 function showLogin(message = "", isError = false) {
@@ -205,7 +209,7 @@ function updatePrinterWarning() {
 function renderOrders() {
   if (!orders.length) {
     ordersList.className = "orders-list empty-state";
-    ordersList.textContent = "Waiting for orders...";
+    ordersList.textContent = staffT("orders.waiting");
     return;
   }
 
@@ -215,12 +219,12 @@ function renderOrders() {
     return `
     <article class="order-card">
       <div class="order-topline">
-        <h3>Order #${escapeHtml(order.order_number)}</h3>
+        <h3>${escapeHtml(staffT("orders.order", { number: order.order_number }))}</h3>
         <span class="status-badge ${escapeHtml(order.status)}">${statusLabel(order.status)}</span>
       </div>
 
       <p class="order-meta">${escapeHtml(order.customer_name)} · ${formatTime(order.created_at)}</p>
-      <p class="order-payment">Payment: <strong>${escapeHtml(PAYMENT_LABELS[order.payment_method] || "Not recorded")}</strong></p>
+      <p class="order-payment">${escapeHtml(staffT("orders.payment"))}: <strong>${escapeHtml(paymentLabel(order.payment_method))}</strong></p>
 
       <ul class="order-items">
         ${(order.order_items || []).map((item) => `
@@ -240,7 +244,7 @@ function renderOrders() {
             type="button"
             data-reprint-id="${escapeHtml(order.id)}"
             ${activePrintIds.has(order.id) || queuedPrintIds.has(order.id) ? "disabled" : ""}
-          >Reprint</button>
+          >${escapeHtml(staffT("orders.reprint"))}</button>
         </div>
       </div>
 
@@ -261,7 +265,7 @@ function renderOrders() {
         data-archive-order-id="${escapeHtml(order.id)}"
         ${canArchive ? "" : "disabled"}
         title="${canArchive ? "Move this order to Archived Orders" : "Complete and successfully print this order before archiving"}"
-      >${canArchive ? "Archive order" : "Archive after Completed + Printed"}</button>
+      >${escapeHtml(canArchive ? staffT("orders.archive") : staffT("orders.archiveLocked"))}</button>
       <p class="form-message archive-order-message" data-archive-message role="status"></p>
     </article>
   `;
@@ -271,7 +275,7 @@ function renderOrders() {
 function renderArchivedOrders() {
   if (!archivedOrders.length) {
     archivedOrdersList.className = "orders-list archived-orders-list empty-state";
-    archivedOrdersList.textContent = "No archived orders yet.";
+    archivedOrdersList.textContent = staffT("archive.empty");
     return;
   }
 
@@ -279,11 +283,11 @@ function renderArchivedOrders() {
   archivedOrdersList.innerHTML = archivedOrders.map((order) => `
     <article class="order-card archived-order-card">
       <div class="order-topline">
-        <h3>Order #${escapeHtml(order.order_number)}</h3>
-        <span class="status-badge completed">Archived</span>
+        <h3>${escapeHtml(staffT("orders.order", { number: order.order_number }))}</h3>
+        <span class="status-badge completed">${escapeHtml(staffT("archive.title"))}</span>
       </div>
       <p class="order-meta">${escapeHtml(order.customer_name)} · ${formatTime(order.created_at)}</p>
-      <p class="order-payment">Payment: <strong>${escapeHtml(PAYMENT_LABELS[order.payment_method] || "Not recorded")}</strong></p>
+      <p class="order-payment">${escapeHtml(staffT("orders.payment"))}: <strong>${escapeHtml(paymentLabel(order.payment_method))}</strong></p>
       <ul class="order-items">
         ${(order.order_items || []).map((item) => `
           <li>
@@ -294,7 +298,7 @@ function renderArchivedOrders() {
       </ul>
       <div class="order-footer">
         <p class="order-total">${formatEuro(order.total_price)}</p>
-        <small>Archived ${formatTime(order.archived_at)}</small>
+        <small>${escapeHtml(staffT("archive.archived", { time: formatTime(order.archived_at) }))}</small>
       </div>
     </article>
   `).join("");
@@ -335,7 +339,7 @@ function renderCustomerList() {
   const visibleCustomers = filteredCustomers();
   if (!visibleCustomers.length) {
     staffCustomerList.className = "staff-customer-list empty-state";
-    staffCustomerList.textContent = customers.length ? "No matching customers." : "No customers yet.";
+    staffCustomerList.textContent = customers.length ? staffT("customers.noMatch") : staffT("customers.none");
     return;
   }
 
@@ -353,7 +357,7 @@ function renderCustomerList() {
       </span>
       <span class="staff-customer-balance">
         <strong class="${customer.balance < 0 ? "negative-balance" : ""}">${formatEuro(customer.balance)}</strong>
-        ${customer.balance < 0 ? "<small>Outstanding</small>" : ""}
+        ${customer.balance < 0 ? `<small>${escapeHtml(staffT("customers.outstanding"))}</small>` : ""}
       </span>
     </button>
   `).join("");
@@ -374,13 +378,13 @@ function renderSelectedCustomer() {
   selectedCustomerBalance.classList.toggle("negative-balance", customer.balance < 0);
   walletWelcomeBonus.disabled = selectedCustomerHasWelcomeBonus;
   walletWelcomeBonus.textContent = selectedCustomerHasWelcomeBonus
-    ? "Willkommensrabatt already applied"
-    : "Willkommensrabatt +€3";
+    ? staffT("wallet.welcomeUsed")
+    : staffT("wallet.welcome");
 }
 
 async function loadCustomers() {
   refreshCustomers.disabled = true;
-  setMessage(customersMessage, "Loading customers...");
+  setMessage(customersMessage, staffT("message.loadingCustomers"));
 
   const [profilesResult, walletsResult] = await Promise.all([
     window.elimSupabase
@@ -412,14 +416,14 @@ async function loadCustomers() {
   if (selectedCustomerId && !customers.some((customer) => customer.user_id === selectedCustomerId)) {
     selectedCustomerId = null;
   }
-  setMessage(customersMessage, `${customers.length} customer account(s).`);
+  setMessage(customersMessage, staffT("message.customerCount", { count: customers.length }));
   renderCustomerList();
   renderSelectedCustomer();
 }
 
 async function loadWalletTransactions(customerId) {
   walletTransactions.className = "wallet-transactions empty-state";
-  walletTransactions.textContent = "Loading transactions...";
+  walletTransactions.textContent = staffT("wallet.loadingTransactions");
 
   const { data, error } = await window.elimSupabase
     .from("wallet_transactions")
@@ -439,7 +443,7 @@ async function loadWalletTransactions(customerId) {
 
   if (!data?.length) {
     walletTransactions.className = "wallet-transactions empty-state";
-    walletTransactions.textContent = "No transactions yet.";
+    walletTransactions.textContent = staffT("wallet.noTransactions");
     return;
   }
 
@@ -451,12 +455,12 @@ async function loadWalletTransactions(customerId) {
     return `
     <article class="wallet-transaction-row">
       <div>
-        <strong>${escapeHtml(statusLabel(transaction.type))}</strong>
+        <strong>${escapeHtml(staffT(`transaction.${transaction.type}`))}</strong>
         <span>${escapeHtml(formatTime(transaction.created_at))}${transaction.note ? ` · ${escapeHtml(transaction.note)}` : ""}</span>
       </div>
       <div>
         <strong class="wallet-amount ${amountClass}">${amountPrefix}${formatEuro(amount)}</strong>
-        <span>Balance ${formatEuro(transaction.balance_after)}</span>
+        <span>${escapeHtml(staffT("wallet.balance"))} ${formatEuro(transaction.balance_after)}</span>
       </div>
     </article>
   `;
@@ -541,13 +545,13 @@ async function changeCustomerBalance(amount, transactionType = "topup") {
 function updateTopupPreview() {
   const paidAmount = Number(walletTopupAmount.value);
   if (!Number.isFinite(paidAmount) || paidAmount <= 0) {
-    walletTopupPreview.textContent = "10% bonus applies to top-ups of €10 or more.";
+    walletTopupPreview.textContent = staffT("wallet.bonusRule");
     return;
   }
   const bonus = paidAmount >= 10 ? Math.round(paidAmount * 10) / 100 : 0;
   walletTopupPreview.textContent = bonus > 0
-    ? `Paid ${formatEuro(paidAmount)} + 10% bonus ${formatEuro(bonus)} = credit ${formatEuro(paidAmount + bonus)}`
-    : `Paid ${formatEuro(paidAmount)} = credit ${formatEuro(paidAmount)}. Bonus starts at €10.`;
+    ? staffT("wallet.previewBonus", { paid: formatEuro(paidAmount), bonus: formatEuro(bonus), credit: formatEuro(paidAmount + bonus) })
+    : staffT("wallet.previewNoBonus", { paid: formatEuro(paidAmount), credit: formatEuro(paidAmount) });
 }
 
 async function applyWelcomeBonus() {
@@ -593,20 +597,20 @@ async function recordCustomerOffering(event) {
   const customer = selectedCustomer();
   const amount = Number(walletOfferingAmount.value);
   if (!customer || !Number.isFinite(amount) || amount <= 0 || amount > 10000) {
-    setMessage(walletMessage, "Enter an offering amount greater than €0 and no more than €10,000.", true);
+    setMessage(walletMessage, staffT("offering.invalid"), true);
     return;
   }
   if (amount > customer.balance) {
-    setMessage(walletMessage, `Offering cannot exceed the current balance of ${formatEuro(customer.balance)}.`, true);
+    setMessage(walletMessage, staffT("offering.exceeds", { balance: formatEuro(customer.balance) }), true);
     return;
   }
   const originalButtonText = walletOfferingSubmit.textContent;
   walletOfferingSubmit.disabled = true;
-  walletOfferingSubmit.textContent = "Recording...";
+  walletOfferingSubmit.textContent = staffT("offering.recording");
   walletTopupSubmit.disabled = true;
   walletRefundSubmit.disabled = true;
   walletWelcomeBonus.disabled = true;
-  setMessage(walletMessage, `Recording ${formatEuro(amount)} offering for ${customer.display_name}...`);
+  setMessage(walletMessage, staffT("offering.progress", { amount: formatEuro(amount), name: customer.display_name }));
 
   try {
     const { data, error } = await window.elimSupabase.rpc("staff_record_offering", {
@@ -624,7 +628,7 @@ async function recordCustomerOffering(event) {
     ));
     walletOfferingAmount.value = "";
     walletOfferingNote.value = "";
-    setMessage(walletMessage, `Offering ${formatEuro(amount)} recorded. New balance: ${formatEuro(newBalance)}.`);
+    setMessage(walletMessage, staffT("offering.success", { amount: formatEuro(amount), balance: formatEuro(newBalance) }));
     renderCustomerList();
     renderSelectedCustomer();
     await loadWalletTransactions(customer.user_id);
@@ -779,7 +783,7 @@ async function loadReceiptSettings() {
   receiptSettings = window.elimReceipt.normalizeSettings(data);
   receiptSettingsLoaded = true;
   fillReceiptSettingsForm(receiptSettings);
-  setMessage(receiptSettingsMessage, "Receipt settings loaded.");
+  setMessage(receiptSettingsMessage, staffT("message.settingsLoaded"));
 }
 
 async function saveReceiptSettings(event) {
@@ -787,7 +791,7 @@ async function saveReceiptSettings(event) {
   const nextSettings = currentReceiptSettings();
   const saveButton = document.querySelector("#receipt-save");
   saveButton.disabled = true;
-  setMessage(receiptSettingsMessage, "Saving receipt settings...");
+  setMessage(receiptSettingsMessage, staffT("message.settingsSaving"));
 
   const { data, error } = await window.elimSupabase
     .from("receipt_settings")
@@ -806,7 +810,7 @@ async function saveReceiptSettings(event) {
   receiptSettings = window.elimReceipt.normalizeSettings(data);
   receiptSettingsLoaded = true;
   fillReceiptSettingsForm(receiptSettings);
-  setMessage(receiptSettingsMessage, "Receipt settings saved.");
+  setMessage(receiptSettingsMessage, staffT("message.settingsSaved"));
 }
 
 async function isAuthorizedStaff(userId) {
@@ -826,7 +830,7 @@ async function isAuthorizedStaff(userId) {
 
 async function loadOrders({ processPrints = true } = {}) {
   refreshOrders.disabled = true;
-  setMessage(staffMessage, "Loading orders...");
+  setMessage(staffMessage, staffT("message.loadingOrders"));
 
   const { data, error } = await window.elimSupabase
     .from("orders")
@@ -842,7 +846,7 @@ async function loadOrders({ processPrints = true } = {}) {
   }
 
   orders = data || [];
-  setMessage(staffMessage, realtimeChannel ? "Live updates connected." : "");
+  setMessage(staffMessage, realtimeChannel ? staffT("message.live") : "");
   renderOrders();
   renderReceiptPreview();
   await loadArchivedOrderCount();
@@ -860,10 +864,12 @@ async function loadArchivedOrderCount() {
     return;
   }
   archivedOrdersCount.textContent = String(count || 0);
+  const countContainer = archivedOrdersCount.parentElement;
+  if (countContainer) countContainer.lastChild.textContent = staffT("archive.count", { count: "" }).replace(" ▾", "") + " ▾";
 }
 
 async function loadArchivedOrders() {
-  setMessage(archivedOrdersMessage, "Loading archived orders...");
+  setMessage(archivedOrdersMessage, staffT("message.loadingArchive"));
   const { data, error } = await window.elimSupabase
     .from("orders")
     .select("id, order_number, customer_name, total_price, payment_method, status, created_at, archived_at, order_items(category, item_name, variant, quantity, unit_price)")
@@ -877,7 +883,7 @@ async function loadArchivedOrders() {
     return;
   }
   archivedOrders = data || [];
-  setMessage(archivedOrdersMessage, `${archivedOrders.length} archived order(s).`);
+  setMessage(archivedOrdersMessage, staffT("message.archiveCount", { count: archivedOrders.length }));
   renderArchivedOrders();
 }
 
@@ -889,7 +895,7 @@ async function archiveOrder(orderId, archiveButton = null) {
   const originalButtonText = archiveButton?.textContent;
   if (archiveButton) {
     archiveButton.disabled = true;
-    archiveButton.textContent = "Archiving...";
+    archiveButton.textContent = staffT("orders.archiving");
   }
   setMessage(cardMessage, `Moving Order #${order.order_number} to Archived Orders...`);
   setMessage(staffMessage, `Archiving Order #${order.order_number}...`);
@@ -1048,7 +1054,7 @@ function queuePendingAutomaticPrints() {
 
 async function updateOrderStatus(orderId, status) {
   if (!STATUSES.includes(status)) return;
-  setMessage(staffMessage, "Updating order...");
+  setMessage(staffMessage, staffT("message.updatingOrder"));
 
   const { error } = await window.elimSupabase
     .from("orders")
@@ -1062,7 +1068,7 @@ async function updateOrderStatus(orderId, status) {
   }
 
   orders = orders.map((order) => (order.id === orderId ? { ...order, status } : order));
-  setMessage(staffMessage, "Order status updated.");
+  setMessage(staffMessage, staffT("message.statusUpdated"));
   renderOrders();
 
   if (status === "completed") {
@@ -1088,7 +1094,7 @@ function subscribeToOrders() {
     .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => loadOrders())
     .on("postgres_changes", { event: "*", schema: "public", table: "order_items" }, () => loadOrders())
     .subscribe((status) => {
-      if (status === "SUBSCRIBED") setMessage(staffMessage, "Live updates connected.");
+      if (status === "SUBSCRIBED") setMessage(staffMessage, staffT("message.live"));
       if (status === "CHANNEL_ERROR") {
         setMessage(staffMessage, "Realtime connection failed. Use Refresh while checking Supabase settings.", true);
       }
@@ -1134,7 +1140,7 @@ async function signInStaff(event) {
   if (!email || !password) return;
 
   staffSignIn.disabled = true;
-  setMessage(loginMessage, "Signing in...");
+  setMessage(loginMessage, staffT("message.signingIn"));
   const { data, error } = await window.elimSupabase.auth.signInWithPassword({ email, password });
   staffSignIn.disabled = false;
 
@@ -1216,7 +1222,7 @@ receiptSettingsForm.addEventListener("submit", saveReceiptSettings);
 receiptSettingsForm.addEventListener("input", () => renderReceiptPreview());
 receiptPreviewButton.addEventListener("click", () => {
   renderReceiptPreview();
-  setMessage(receiptSettingsMessage, "Preview updated. Save settings to use them for live orders.");
+  setMessage(receiptSettingsMessage, staffT("message.previewUpdated"));
 });
 receiptTestPrint.addEventListener("click", async () => {
   if (!printerConnected) return;
@@ -1257,9 +1263,20 @@ staffLogout.addEventListener("click", async () => {
   }
 });
 
+document.addEventListener("elim:staff-languagechange", () => {
+  renderOrders();
+  renderArchivedOrders();
+  renderCustomerList();
+  renderSelectedCustomer();
+  updateTopupPreview();
+  renderReceiptPreview();
+  loadArchivedOrderCount();
+  if (selectedCustomerId) loadWalletTransactions(selectedCustomerId);
+});
+
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20261107");
+    navigator.serviceWorker.register("service-worker.js?v=20261108");
   });
 }
 
