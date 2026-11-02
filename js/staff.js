@@ -147,8 +147,18 @@ function escapeHtml(value) {
 }
 
 function setMessage(element, message, isError = false) {
+  if (!element) return;
   element.textContent = message;
   element.classList.toggle("error", isError);
+}
+
+function rpcFailureMessage(error, fallback) {
+  const message = error?.message || fallback;
+  const missingRpc = error?.code === "PGRST202"
+    || /function .* could not be found|schema cache/i.test(message);
+  return missingRpc
+    ? `${message} Run supabase-order-archive-and-offerings.sql in the Supabase SQL Editor, then reload this page.`
+    : message;
 }
 
 function statusLabel(status) {
@@ -252,6 +262,7 @@ function renderOrders() {
         ${canArchive ? "" : "disabled"}
         title="${canArchive ? "Move this order to Archived Orders" : "Complete and successfully print this order before archiving"}"
       >${canArchive ? "Archive order" : "Archive after Completed + Printed"}</button>
+      <p class="form-message archive-order-message" data-archive-message role="status"></p>
     </article>
   `;
   }).join("");
@@ -589,40 +600,46 @@ async function recordCustomerOffering(event) {
     setMessage(walletMessage, `Offering cannot exceed the current balance of ${formatEuro(customer.balance)}.`, true);
     return;
   }
-  if (!window.confirm(`Deduct ${formatEuro(amount)} as an offering from ${customer.display_name}?`)) return;
-
+  const originalButtonText = walletOfferingSubmit.textContent;
   walletOfferingSubmit.disabled = true;
+  walletOfferingSubmit.textContent = "Recording...";
   walletTopupSubmit.disabled = true;
   walletRefundSubmit.disabled = true;
   walletWelcomeBonus.disabled = true;
   setMessage(walletMessage, `Recording ${formatEuro(amount)} offering for ${customer.display_name}...`);
 
-  const { data, error } = await window.elimSupabase.rpc("staff_record_offering", {
-    p_customer_user_id: customer.user_id,
-    p_amount: amount,
-    p_note: walletOfferingNote.value.trim() || null
-  });
+  try {
+    const { data, error } = await window.elimSupabase.rpc("staff_record_offering", {
+      p_customer_user_id: customer.user_id,
+      p_amount: amount,
+      p_note: walletOfferingNote.value.trim() || null
+    });
+    if (error) throw error;
 
-  walletOfferingSubmit.disabled = false;
-  walletTopupSubmit.disabled = false;
-  walletRefundSubmit.disabled = false;
-  walletWelcomeBonus.disabled = selectedCustomerHasWelcomeBonus;
-  if (error) {
+    const newBalance = Number(data?.balance);
+    if (!Number.isFinite(newBalance)) throw new Error("Supabase returned an invalid balance.");
+
+    customers = customers.map((entry) => (
+      entry.user_id === customer.user_id ? { ...entry, balance: newBalance } : entry
+    ));
+    walletOfferingAmount.value = "";
+    walletOfferingNote.value = "";
+    setMessage(walletMessage, `Offering ${formatEuro(amount)} recorded. New balance: ${formatEuro(newBalance)}.`);
+    renderCustomerList();
+    renderSelectedCustomer();
+    await loadWalletTransactions(customer.user_id);
+  } catch (error) {
     console.error("Could not record offering:", error);
-    setMessage(walletMessage, `Could not record offering: ${error.message}`, true);
-    return;
+    const message = rpcFailureMessage(error, "The offering could not be recorded.");
+    setMessage(walletMessage, `Could not record offering: ${message}`, true);
+    walletMessage.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  } finally {
+    walletOfferingSubmit.disabled = false;
+    walletOfferingSubmit.textContent = originalButtonText;
+    walletTopupSubmit.disabled = false;
+    walletRefundSubmit.disabled = false;
+    walletWelcomeBonus.disabled = selectedCustomerHasWelcomeBonus;
   }
-
-  const newBalance = Number(data?.balance || 0);
-  customers = customers.map((entry) => (
-    entry.user_id === customer.user_id ? { ...entry, balance: newBalance } : entry
-  ));
-  walletOfferingAmount.value = "";
-  walletOfferingNote.value = "";
-  setMessage(walletMessage, `Offering ${formatEuro(amount)} recorded. New balance: ${formatEuro(newBalance)}.`);
-  renderCustomerList();
-  renderSelectedCustomer();
-  await loadWalletTransactions(customer.user_id);
 }
 
 function currentReceiptSettings() {
@@ -864,24 +881,38 @@ async function loadArchivedOrders() {
   renderArchivedOrders();
 }
 
-async function archiveOrder(orderId) {
+async function archiveOrder(orderId, archiveButton = null) {
   const order = orders.find((entry) => String(entry.id) === String(orderId));
   if (!order) return;
-  if (!window.confirm(`Move Order #${order.order_number} to Archived Orders?`)) return;
 
-  setMessage(staffMessage, `Archiving Order #${order.order_number}...`);
-  const { data, error } = await window.elimSupabase.rpc("staff_archive_order", {
-    p_order_id: String(orderId)
-  });
-
-  if (error || !data?.archived) {
-    console.error("Could not archive order:", error || data);
-    setMessage(staffMessage, `Could not archive Order #${order.order_number}: ${error?.message || "Order was not archived"}`, true);
-    return;
+  const cardMessage = archiveButton?.closest(".order-card")?.querySelector("[data-archive-message]");
+  const originalButtonText = archiveButton?.textContent;
+  if (archiveButton) {
+    archiveButton.disabled = true;
+    archiveButton.textContent = "Archiving...";
   }
+  setMessage(cardMessage, `Moving Order #${order.order_number} to Archived Orders...`);
+  setMessage(staffMessage, `Archiving Order #${order.order_number}...`);
+  try {
+    const { data, error } = await window.elimSupabase.rpc("staff_archive_order", {
+      p_order_id: String(orderId)
+    });
+    if (error) throw error;
+    if (!data?.archived && !data?.already_archived) throw new Error("Supabase did not archive this order.");
 
-  await loadOrders({ processPrints: false });
-  setMessage(staffMessage, `Order #${order.order_number} moved to Archived Orders.`);
+    await loadOrders({ processPrints: false });
+    setMessage(staffMessage, `Order #${order.order_number} moved to Archived Orders.`);
+  } catch (error) {
+    console.error("Could not archive order:", error);
+    const message = rpcFailureMessage(error, "The order was not archived.");
+    setMessage(cardMessage, `Could not archive: ${message}`, true);
+    setMessage(staffMessage, `Could not archive Order #${order.order_number}: ${message}`, true);
+    cardMessage?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    if (archiveButton) {
+      archiveButton.disabled = false;
+      archiveButton.textContent = originalButtonText;
+    }
+  }
 }
 
 async function toggleArchivedOrderPanel() {
@@ -1145,7 +1176,7 @@ ordersList.addEventListener("click", (event) => {
 
   const archiveButton = event.target.closest("[data-archive-order-id]");
   if (archiveButton && !archiveButton.disabled) {
-    archiveOrder(archiveButton.dataset.archiveOrderId);
+    archiveOrder(archiveButton.dataset.archiveOrderId, archiveButton);
     return;
   }
 
@@ -1228,7 +1259,7 @@ staffLogout.addEventListener("click", async () => {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20261106");
+    navigator.serviceWorker.register("service-worker.js?v=20261107");
   });
 }
 
