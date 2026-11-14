@@ -175,10 +175,28 @@
     return printableText(value, 40).trim() || "Other";
   }
 
+  function menuCategoryForItem(item) {
+    const itemName = String(item?.item_name || "").trim().toLowerCase();
+    if (!itemName || !Array.isArray(window.ELIM_MENU)) return null;
+    for (const group of window.ELIM_MENU) {
+      const match = (group.items || []).find((menuItem) => (
+        String(menuItem.name || "").trim().toLowerCase() === itemName
+      ));
+      if (match) return categoryName(group.category);
+    }
+    return null;
+  }
+
+  function resolvedItemCategory(item) {
+    const stored = categoryName(item?.category);
+    if (stored.toLowerCase() !== "other") return stored;
+    return menuCategoryForItem(item) || stored;
+  }
+
   function groupOrderItems(order) {
     const groups = new Map();
     (order.order_items || []).forEach((item) => {
-      const category = categoryName(item.category);
+      const category = resolvedItemCategory(item);
       if (!groups.has(category)) groups.set(category, []);
       groups.get(category).push(item);
     });
@@ -273,7 +291,15 @@
         ...printerBytes(entry.text), 0x0a
       );
     });
-    bytes.push(ESC, 0x45, 0x00, GS, 0x21, 0x00, ESC, 0x61, 0x00, 0x0a, 0x0a, 0x0a, 0x0a);
+    // Feed enough paper for the Z5801 manual tear bar. The GS V command is
+    // harmless on manual-tear models and cuts automatically on cutter variants.
+    bytes.push(
+      ESC, 0x45, 0x00,
+      GS, 0x21, 0x00,
+      ESC, 0x61, 0x00,
+      0x0a, 0x0a, 0x0a, 0x0a, 0x0a, 0x0a,
+      GS, 0x56, 0x42, 0x00
+    );
     return new Uint8Array(bytes);
   }
 

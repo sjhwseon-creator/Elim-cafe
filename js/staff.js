@@ -114,6 +114,11 @@ let selectedCustomerHasWelcomeBonus = false;
 let currentStaffView = "orders";
 const activePrintIds = new Set();
 const queuedPrintIds = new Set();
+const CATEGORY_TICKET_PAUSE_MS = 1500;
+
+function wait(milliseconds) {
+  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+}
 
 function formatEuro(value) {
   return new Intl.NumberFormat("en-IE", {
@@ -981,12 +986,21 @@ async function printOrder(orderId, { force = false, automatic = false } = {}) {
     const receipts = window.elimReceipt.buildCategoryReceipts(order, receiptSettings);
     if (!receipts.length) throw new Error("This order has no category tickets to print.");
 
+    console.info(
+      `Order #${order.order_number} category print plan:`,
+      receipts.map((receipt) => ({
+        category: receipt.category,
+        items: receipt.items.map((item) => `${item.item_name} x${item.quantity}`)
+      }))
+    );
+
     for (const [index, receipt] of receipts.entries()) {
       setMessage(
         staffMessage,
         `${automatic ? "Automatically printing" : "Reprinting"} order #${order.order_number}: ${receipt.category} (${index + 1}/${receipts.length})...`
       );
       await window.elimPrinter.print(receipt.bytes);
+      if (index < receipts.length - 1) await wait(CATEGORY_TICKET_PAUSE_MS);
     }
 
     try {
@@ -1230,8 +1244,9 @@ receiptTestPrint.addEventListener("click", async () => {
     const settings = currentReceiptSettings();
     renderReceiptPreview(settings);
     const receipts = window.elimReceipt.buildCategoryReceipts(previewOrder(), settings);
-    for (const receipt of receipts) {
+    for (const [index, receipt] of receipts.entries()) {
       await window.elimPrinter.print(receipt.bytes);
+      if (index < receipts.length - 1) await wait(CATEGORY_TICKET_PAUSE_MS);
     }
     setMessage(receiptSettingsMessage, `${receipts.length} category preview ticket(s) printed.`);
   } catch (error) {
@@ -1275,7 +1290,7 @@ document.addEventListener("elim:staff-languagechange", () => {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20261114");
+    navigator.serviceWorker.register("service-worker.js?v=20261115");
   });
 }
 

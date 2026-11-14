@@ -1,4 +1,4 @@
-const CACHE_NAME = "elim-cafe-system-notifications-v19";
+const CACHE_NAME = "elim-cafe-category-tickets-v20";
 const APP_SHELL = [
   "./",
   "index.html",
@@ -9,11 +9,11 @@ const APP_SHELL = [
   "js/notification-config.js?v=20261102",
   "js/i18n.js?v=20261103",
   "js/customer.js?v=20261114",
-  "js/receipt.js?v=20261104",
+  "js/receipt.js?v=20261115",
   "js/printer-bridge.js?v=20261018",
   "js/printer-test.js?v=20261108",
   "js/staff-i18n.js?v=20261108",
-  "js/staff.js?v=20261114",
+  "js/staff.js?v=20261115",
   "js/staff-order.js?v=20261108",
   "manifest.json",
   "icons/elim-icon.svg",
