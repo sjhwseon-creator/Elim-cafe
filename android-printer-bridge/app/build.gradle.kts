@@ -11,8 +11,8 @@ android {
         applicationId = "de.elimcafe.printerbridge"
         minSdk = 26
         targetSdk = 36
-        versionCode = 6
-        versionName = "1.5-printer-reconnect"
+        versionCode = 7
+        versionName = "1.6-filtered-printer-selector"
     }
 
     buildTypes {

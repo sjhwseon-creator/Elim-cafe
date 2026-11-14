@@ -277,29 +277,23 @@ class MainActivity : Activity(), WebPrinterBridge.Host {
             return
         }
 
-        // Reuse the Android companion association after the first successful choice.
-        // This avoids showing the crowded system device list on later connections.
-        val associatedPrinter = manager.myAssociations
-            .asSequence()
-            .mapNotNull { selectedCompanionDevice(it) }
-            .firstOrNull { isPreferredPrinter(it) }
-        if (associatedPrinter != null) {
-            pendingConnectRequestId = null
-            connectSelectedDevice(requestId, associatedPrinter)
+        val request = try {
+            AssociationRequest.Builder()
+                // Printer001 is a discovery filter only. Keep the same BLE + Classic
+                // selector shape that is known to work on this tablet.
+                .addDeviceFilter(BluetoothLeDeviceFilter.Builder()
+                    .setNamePattern(PREFERRED_PRINTER_NAME_PATTERN)
+                    .build())
+                .addDeviceFilter(BluetoothDeviceFilter.Builder()
+                    .setNamePattern(PREFERRED_PRINTER_NAME_PATTERN)
+                    .build())
+                .setSingleDevice(false)
+                .build()
+        } catch (error: Exception) {
+            Log.e(TAG, "Could not build filtered companion-device request", error)
+            openDeviceSelector()
             return
         }
-
-        val request = AssociationRequest.Builder()
-            // Printer001 is a discovery filter only. The selected BluetoothDevice/MAC
-            // remains the actual connection identity and is never inferred from the name.
-            .addDeviceFilter(BluetoothLeDeviceFilter.Builder()
-                .setNamePattern(PREFERRED_PRINTER_NAME_PATTERN)
-                .build())
-            .addDeviceFilter(BluetoothDeviceFilter.Builder()
-                .setNamePattern(PREFERRED_PRINTER_NAME_PATTERN)
-                .build())
-            .setSingleDevice(true)
-            .build()
 
         val callback = object : CompanionDeviceManager.Callback() {
             override fun onAssociationPending(intentSender: IntentSender) {
