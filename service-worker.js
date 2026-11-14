@@ -1,4 +1,4 @@
-const CACHE_NAME = "elim-cafe-staff-i18n-v18";
+const CACHE_NAME = "elim-cafe-system-notifications-v19";
 const APP_SHELL = [
   "./",
   "index.html",
@@ -8,12 +8,12 @@ const APP_SHELL = [
   "js/menu.js?v=20261009",
   "js/notification-config.js?v=20261102",
   "js/i18n.js?v=20261103",
-  "js/customer.js?v=20261103",
+  "js/customer.js?v=20261114",
   "js/receipt.js?v=20261104",
   "js/printer-bridge.js?v=20261018",
   "js/printer-test.js?v=20261108",
   "js/staff-i18n.js?v=20261108",
-  "js/staff.js?v=20261108",
+  "js/staff.js?v=20261114",
   "js/staff-order.js?v=20261108",
   "manifest.json",
   "icons/elim-icon.svg",
@@ -70,7 +70,6 @@ self.addEventListener("push", (event) => {
     const visibleClient = openClients.find((client) => client.visibilityState === "visible");
     if (visibleClient) {
       visibleClient.postMessage({ type: "ORDER_READY", payload });
-      return;
     }
 
     const title = payload.title || "Elim Café";
@@ -79,7 +78,10 @@ self.addEventListener("push", (event) => {
       icon: "icons/elim-icon.svg",
       badge: "icons/elim-icon.svg",
       tag: `elim-order-ready-${payload.orderId || payload.orderNumber || "order"}`,
-      renotify: false,
+      renotify: true,
+      silent: false,
+      vibrate: [300, 150, 300, 150, 500],
+      requireInteraction: true,
       data: {
         url: payload.url || "./index.html",
         orderId: payload.orderId,

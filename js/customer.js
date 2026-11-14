@@ -131,7 +131,7 @@ async function getServiceWorkerRegistration() {
   if (!supportsPushNotifications()) return null;
   const existingRegistration = await navigator.serviceWorker.getRegistration();
   if (existingRegistration) return existingRegistration;
-  return navigator.serviceWorker.register("service-worker.js?v=20261103");
+  return navigator.serviceWorker.register("service-worker.js?v=20261114");
 }
 
 async function savePushSubscription(subscription) {
@@ -938,7 +938,7 @@ if ("serviceWorker" in navigator) {
     showOrderReady({ id: payload.orderId, order_number: payload.orderNumber });
   });
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20261103");
+    navigator.serviceWorker.register("service-worker.js?v=20261114");
   });
 }
 

@@ -38,6 +38,7 @@ import android.widget.Toast
 import de.elimcafe.printerbridge.printer.PrinterController
 import de.elimcafe.printerbridge.web.WebPrinterBridge
 import org.json.JSONObject
+import java.util.regex.Pattern
 
 class MainActivity : Activity(), WebPrinterBridge.Host {
     private lateinit var webView: WebView
@@ -254,6 +255,7 @@ class MainActivity : Activity(), WebPrinterBridge.Host {
         }
     }
 
+    @SuppressLint("MissingPermission")
     private fun openSystemDeviceSelector() {
         val requestId = pendingConnectRequestId ?: return
         val adapter = bluetoothAdapter
@@ -275,10 +277,28 @@ class MainActivity : Activity(), WebPrinterBridge.Host {
             return
         }
 
+        // Reuse the Android companion association after the first successful choice.
+        // This avoids showing the crowded system device list on later connections.
+        val associatedPrinter = manager.myAssociations
+            .asSequence()
+            .mapNotNull { selectedCompanionDevice(it) }
+            .firstOrNull { isPreferredPrinter(it) }
+        if (associatedPrinter != null) {
+            pendingConnectRequestId = null
+            connectSelectedDevice(requestId, associatedPrinter)
+            return
+        }
+
         val request = AssociationRequest.Builder()
-            .addDeviceFilter(BluetoothLeDeviceFilter.Builder().build())
-            .addDeviceFilter(BluetoothDeviceFilter.Builder().build())
-            .setSingleDevice(false)
+            // Printer001 is a discovery filter only. The selected BluetoothDevice/MAC
+            // remains the actual connection identity and is never inferred from the name.
+            .addDeviceFilter(BluetoothLeDeviceFilter.Builder()
+                .setNamePattern(PREFERRED_PRINTER_NAME_PATTERN)
+                .build())
+            .addDeviceFilter(BluetoothDeviceFilter.Builder()
+                .setNamePattern(PREFERRED_PRINTER_NAME_PATTERN)
+                .build())
+            .setSingleDevice(true)
             .build()
 
         val callback = object : CompanionDeviceManager.Callback() {
@@ -594,8 +614,9 @@ class MainActivity : Activity(), WebPrinterBridge.Host {
     private fun addDevice(device: BluetoothDevice) {
         runOnUiThread {
             val address = try { device.address } catch (_: SecurityException) { return@runOnUiThread }
-            if (discoveredDevices.putIfAbsent(address, device) != null) return@runOnUiThread
             val name = try { device.name } catch (_: SecurityException) { null }
+            if (!isPreferredPrinter(device)) return@runOnUiThread
+            if (discoveredDevices.putIfAbsent(address, device) != null) return@runOnUiThread
             val bond = if (device.bondState == BluetoothDevice.BOND_BONDED) "Paired" else "Nearby"
             val kind = when (device.type) {
                 BluetoothDevice.DEVICE_TYPE_LE -> "BLE"
@@ -607,6 +628,13 @@ class MainActivity : Activity(), WebPrinterBridge.Host {
             deviceListAdapter?.notifyDataSetChanged()
             selectorDialog?.setMessage("Select a nearby receipt printer.")
         }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun isPreferredPrinter(device: BluetoothDevice): Boolean = try {
+        device.name?.matches(PREFERRED_PRINTER_NAME_REGEX) == true
+    } catch (_: SecurityException) {
+        false
     }
 
     private fun bleScanError(errorCode: Int): String = when (errorCode) {
@@ -642,6 +670,8 @@ class MainActivity : Activity(), WebPrinterBridge.Host {
         private const val COMPANION_DEVICE_REQUEST = 1002
         private const val CLASSIC_FALLBACK_DELAY_MS = 6_000L
         private const val EMPTY_SCAN_NOTICE_DELAY_MS = 15_000L
+        private val PREFERRED_PRINTER_NAME_PATTERN = Pattern.compile("^Printer001$", Pattern.CASE_INSENSITIVE)
+        private val PREFERRED_PRINTER_NAME_REGEX = Regex("^Printer001$", RegexOption.IGNORE_CASE)
         private val REQUIRED_PERMISSIONS = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
         } else {

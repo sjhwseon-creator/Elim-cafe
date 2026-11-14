@@ -557,7 +557,6 @@ function updateTopupPreview() {
 async function applyWelcomeBonus() {
   const customer = selectedCustomer();
   if (!customer || selectedCustomerHasWelcomeBonus) return;
-  if (!window.confirm(`Apply the one-time €3 Willkommensrabatt to ${customer.display_name}?`)) return;
 
   walletWelcomeBonus.disabled = true;
   walletTopupSubmit.disabled = true;
@@ -1276,7 +1275,7 @@ document.addEventListener("elim:staff-languagechange", () => {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20261108");
+    navigator.serviceWorker.register("service-worker.js?v=20261114");
   });
 }
 
