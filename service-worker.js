@@ -1,15 +1,15 @@
-const CACHE_NAME = "elim-cafe-dynamic-menu-v21";
+const CACHE_NAME = "elim-cafe-resend-confirmation-v22";
 const APP_SHELL = [
   "./",
   "index.html",
   "staff.html",
-  "css/styles.css?v=20261117",
+  "css/styles.css?v=20261117b",
   "js/supabase-config.js?v=20261025",
   "js/menu.js?v=20261117",
   "js/menu-store.js?v=20261117",
   "js/notification-config.js?v=20261102",
-  "js/i18n.js?v=20261117",
-  "js/customer.js?v=20261117",
+  "js/i18n.js?v=20261117b",
+  "js/customer.js?v=20261117b",
   "js/receipt.js?v=20261115",
   "js/printer-bridge.js?v=20261018",
   "js/printer-test.js?v=20261108",

@@ -1899,6 +1899,19 @@ body.customer-page {
   text-align: center;
 }
 
+.auth-resend-action {
+  display: flex;
+  justify-content: center;
+  margin-top: 16px;
+}
+
+.auth-resend-action .account-link-button {
+  min-height: 40px;
+  padding: 8px 12px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 .customer-page .language-selector {
   display: grid;
   grid-template-columns: repeat(4, minmax(44px, 1fr));

@@ -11,14 +11,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&amp;family=Nunito:wght@500;600;700;800;900&amp;display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/styles.css?v=20261117">
+    <link rel="stylesheet" href="css/styles.css?v=20261117b">
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script defer src="js/supabase-config.js?v=20261025"></script>
     <script defer src="js/menu.js?v=20261117"></script>
     <script defer src="js/menu-store.js?v=20261117"></script>
     <script defer src="js/notification-config.js?v=20261102"></script>
-    <script defer src="js/i18n.js?v=20261117"></script>
-    <script defer src="js/customer.js?v=20261117"></script>
+    <script defer src="js/i18n.js?v=20261117b"></script>
+    <script defer src="js/customer.js?v=20261117b"></script>
   </head>
   <body class="customer-page">
     <div id="customer-app-shell" hidden>
@@ -163,6 +163,9 @@
           </label>
           <button class="primary-button" type="submit" data-i18n="auth.createAccount">Konto erstellen</button>
         </form>
+        </div>
+        <div class="auth-resend-action">
+          <button id="customer-resend-confirmation" class="account-link-button" type="button" data-i18n="auth.resendConfirmation">Bestätigungs-E-Mail erneut senden</button>
         </div>
         <p id="customer-auth-message" class="form-message" role="status"></p>
       </div>

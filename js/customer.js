@@ -40,6 +40,7 @@ const customerSignUpName = document.querySelector("#customer-sign-up-name");
 const customerSignUpEmail = document.querySelector("#customer-sign-up-email");
 const customerSignUpPassword = document.querySelector("#customer-sign-up-password");
 const customerSignUpConfirmPassword = document.querySelector("#customer-sign-up-confirm-password");
+const customerResendConfirmation = document.querySelector("#customer-resend-confirmation");
 const customerAuthMessage = document.querySelector("#customer-auth-message");
 
 let currentMessage = { key: "", variables: {}, isError: false };
@@ -478,6 +479,48 @@ async function signUpCustomer(event) {
     await loadCustomerAccount(data.session);
   } else {
     setAuthMessage("auth.checkEmail");
+  }
+}
+
+async function resendCustomerConfirmation() {
+  const email = customerSignUpEmail.value.trim() || customerSignInEmail.value.trim();
+  if (!email) {
+    setAuthMessage("auth.resendEnterEmail", true);
+    customerSignUpEmail.focus();
+    return;
+  }
+
+  customerResendConfirmation.disabled = true;
+  setAuthMessage("auth.resendSending");
+  let error = null;
+  try {
+    ({ error } = await window.elimSupabase.auth.resend({
+      type: "signup",
+      email,
+      options: {
+        emailRedirectTo: new URL("index.html", window.location.href).href
+      }
+    }));
+  } catch (requestError) {
+    error = requestError;
+  } finally {
+    customerResendConfirmation.disabled = false;
+  }
+
+  if (!error) {
+    setAuthMessage("auth.resendSent");
+    return;
+  }
+
+  console.error("Could not resend customer confirmation email:", error);
+  const errorMessage = String(error.message || "").toLowerCase();
+  const errorCode = String(error.code || "").toLowerCase();
+  if (error.status === 429 || errorCode.includes("rate") || errorMessage.includes("rate limit") || errorMessage.includes("too many")) {
+    setAuthMessage("auth.resendRateLimit", true);
+  } else if (errorCode.includes("confirmed") || errorMessage.includes("already confirmed") || errorMessage.includes("email confirmed")) {
+    setAuthMessage("auth.resendAlreadyConfirmed", true);
+  } else {
+    setAuthMessage("auth.resendError", true);
   }
 }
 
@@ -921,6 +964,7 @@ placeOrder.addEventListener("click", submitOrder);
 clearCart.addEventListener("click", resetCart);
 customerSignInForm.addEventListener("submit", signInCustomer);
 customerSignUpForm.addEventListener("submit", signUpCustomer);
+customerResendConfirmation.addEventListener("click", resendCustomerConfirmation);
 customerSignOut.addEventListener("click", signOutCustomer);
 notificationToggle.addEventListener("click", toggleOrderNotifications);
 confirmationNotificationEnable.addEventListener("click", enableOrderNotifications);
