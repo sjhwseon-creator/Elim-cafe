@@ -51,6 +51,7 @@ let notificationMessageState = { key: "", isError: false };
 let currentPushSubscription = null;
 let orderReadyAudioContext = null;
 let lastReadyOrderNumber = null;
+let menuStoreUnsubscribe = null;
 const customerOrderChannels = new Map();
 const notifiedOrderIds = new Set();
 
@@ -131,7 +132,7 @@ async function getServiceWorkerRegistration() {
   if (!supportsPushNotifications()) return null;
   const existingRegistration = await navigator.serviceWorker.getRegistration();
   if (existingRegistration) return existingRegistration;
-  return navigator.serviceWorker.register("service-worker.js?v=20261114");
+  return navigator.serviceWorker.register("service-worker.js?v=20261117");
 }
 
 async function savePushSubscription(subscription) {
@@ -364,6 +365,7 @@ function showCustomerApp() {
 
 async function loadCustomerAccount(session) {
   if (!session?.user) {
+    await window.ELIM_MENU_STORE?.stopRealtime();
     await stopWatchingCustomerOrders();
     currentCustomerProfile = null;
     currentCustomerBalance = 0;
@@ -408,6 +410,8 @@ async function loadCustomerAccount(session) {
 
   currentCustomerProfile = profileResult.data;
   currentCustomerBalance = Number(walletResult.data?.balance || 0);
+  await window.ELIM_MENU_STORE.load();
+  window.ELIM_MENU_STORE.startRealtime();
   if (!customerName.value.trim()) customerName.value = currentCustomerProfile.display_name;
   renderCustomerAccount();
   showCustomerApp();
@@ -489,6 +493,7 @@ async function signOutCustomer() {
   currentCustomerProfile = null;
   currentCustomerBalance = 0;
   await stopWatchingCustomerOrders();
+  await window.ELIM_MENU_STORE?.stopRealtime();
   cart.clear();
   lastConfirmation = null;
   confirmationScreen.hidden = true;
@@ -534,7 +539,7 @@ async function initializeCustomerAuth() {
 }
 
 function getMenuItem(id) {
-  return window.ELIM_MENU.flatMap((group) => group.items).find((item) => item.id === id);
+  return window.ELIM_MENU_STORE?.find(id) || null;
 }
 
 function getCartKey(id, variant = null) {
@@ -556,6 +561,12 @@ function getVariantPrice(item, variant) {
   return item.price + (variant === "ice" ? 0.5 : 0);
 }
 
+function isVariantAllowed(item, variant) {
+  if (!item) return false;
+  if (item.variant_mode === "hot_ice") return variant === "hot" || variant === "ice";
+  return variant === null;
+}
+
 function getDisplayName(item) {
   return item.variant ? `${item.name} (${getVariantLabel(item.variant)})` : item.name;
 }
@@ -565,7 +576,7 @@ function getCartRows() {
     .map(([key, quantity]) => {
       const { id, variant } = parseCartKey(key);
       const menuItem = getMenuItem(id);
-      if (!menuItem) return null;
+      if (!menuItem || !menuItem.active || menuItem.sold_out || !isVariantAllowed(menuItem, variant)) return null;
 
       return {
         ...menuItem,
@@ -610,6 +621,11 @@ function hideOrderActions() {
 }
 
 function updateQuantity(id, variant, change) {
+  const item = getMenuItem(id);
+  if (!item?.active || !isVariantAllowed(item, variant) || (item.sold_out && change > 0)) {
+    setMessage("menu.unavailable", { item: item?.name || "" }, true);
+    return;
+  }
   const key = getCartKey(id, variant);
   const nextQuantity = Math.max(0, (cart.get(key) || 0) + change);
 
@@ -631,15 +647,16 @@ function renderQuantityControls(item, variant = null) {
 
   return `
     <div class="quantity-controls" aria-label="${escapeHtml(t("aria.quantity", { item: itemLabel }))}">
-      <button class="qty-button" type="button" data-action="decrease" data-id="${escapeHtml(item.id)}" data-variant="${variant || ""}" aria-label="${escapeHtml(t("aria.removeOne", { item: itemLabel }))}" ${quantity === 0 ? "disabled" : ""}>-</button>
+      <button class="qty-button" type="button" data-action="decrease" data-id="${escapeHtml(item.id)}" data-variant="${variant || ""}" aria-label="${escapeHtml(t("aria.removeOne", { item: itemLabel }))}" ${quantity === 0 || item.sold_out ? "disabled" : ""}>-</button>
       <span class="qty-value">${quantity}</span>
-      <button class="qty-button" type="button" data-action="increase" data-id="${escapeHtml(item.id)}" data-variant="${variant || ""}" aria-label="${escapeHtml(t("aria.addOne", { item: itemLabel }))}">+</button>
+      <button class="qty-button" type="button" data-action="increase" data-id="${escapeHtml(item.id)}" data-variant="${variant || ""}" aria-label="${escapeHtml(t("aria.addOne", { item: itemLabel }))}" ${item.sold_out ? "disabled" : ""}>+</button>
     </div>
   `;
 }
 
 function renderMenu() {
-  menuGroups.innerHTML = window.ELIM_MENU.map((group) => {
+  const groups = window.ELIM_MENU_STORE?.grouped() || [];
+  menuGroups.innerHTML = groups.map((group) => {
     const presentation = CATEGORY_PRESENTATION[group.category] || {
       className: "default",
       icon: "☕",
@@ -661,8 +678,8 @@ function renderMenu() {
         ${group.items.map((item) => {
           if (item.variants?.length) {
             return `
-              <article class="menu-item has-variants">
-                <p class="item-name">${escapeHtml(item.name)}</p>
+              <article class="menu-item has-variants ${item.sold_out ? "sold-out" : ""}">
+                <p class="item-name">${escapeHtml(item.name)} ${item.sold_out ? `<span class="sold-out-badge">${escapeHtml(t("menu.soldOut"))}</span>` : ""}</p>
                 <div class="variant-options">
                   ${item.variants.map((variant) => `
                     <div class="variant-option">
@@ -679,9 +696,9 @@ function renderMenu() {
           }
 
           return `
-            <article class="menu-item">
+            <article class="menu-item ${item.sold_out ? "sold-out" : ""}">
               <div>
-                <p class="item-name">${escapeHtml(item.name)}</p>
+                <p class="item-name">${escapeHtml(item.name)} ${item.sold_out ? `<span class="sold-out-badge">${escapeHtml(t("menu.soldOut"))}</span>` : ""}</p>
                 <p class="item-price">${formatEuro(item.price)}</p>
               </div>
               ${renderQuantityControls(item)}
@@ -786,32 +803,37 @@ function renderConfirmation() {
 
 async function submitOrder() {
   if (placeOrder.disabled) return;
+  placeOrder.disabled = true;
 
+  await window.ELIM_MENU_STORE.load({ allowFallback: false });
   const rows = getCartRows();
   const name = customerName.value.trim();
 
   if (!rows.length) {
+    placeOrder.disabled = false;
     setMessage("validation.addItem", {}, true);
     return;
   }
 
   if (!name) {
+    placeOrder.disabled = false;
     setMessage("validation.enterName", {}, true);
     customerName.focus();
     return;
   }
 
   if (!currentCustomerProfile) {
+    placeOrder.disabled = false;
     showAuthGate();
     return;
   }
 
   if (!window.elimSupabaseConfigured || !window.elimSupabase) {
+    placeOrder.disabled = false;
     setMessage("error.serviceUnavailable", {}, true);
     return;
   }
 
-  placeOrder.disabled = true;
   setMessage("order.sending");
 
   const orderItems = rows.map((item) => ({
@@ -827,7 +849,8 @@ async function submitOrder() {
   if (error || !order?.order_number) {
     console.error("Supabase RPC error while creating order:", error || order);
     placeOrder.disabled = false;
-    setMessage("error.orderFailed", {}, true);
+    await window.ELIM_MENU_STORE.load({ allowFallback: false });
+    setMessage(error?.message?.includes("unavailable") ? "menu.orderChanged" : "error.orderFailed", {}, true);
     return;
   }
 
@@ -938,9 +961,34 @@ if ("serviceWorker" in navigator) {
     showOrderReady({ id: payload.orderId, order_number: payload.orderNumber });
   });
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20261114");
+    navigator.serviceWorker.register("service-worker.js?v=20261117");
   });
 }
+
+function handleMenuChange() {
+  let removed = false;
+  for (const key of [...cart.keys()]) {
+    const { id, variant } = parseCartKey(key);
+    const item = getMenuItem(id);
+    if (!item?.active || item.sold_out || !isVariantAllowed(item, variant)) {
+      cart.delete(key);
+      removed = true;
+    }
+  }
+  if (removed) {
+    hideOrderActions();
+  }
+  renderMenu();
+  renderCart();
+  if (!orderSummary.hidden) renderSummary();
+  if (removed) setMessage("menu.cartRemoved", {}, true);
+}
+
+menuStoreUnsubscribe = window.ELIM_MENU_STORE?.subscribe(handleMenuChange) || null;
+window.addEventListener("pagehide", () => {
+  menuStoreUnsubscribe?.();
+  window.ELIM_MENU_STORE?.stopRealtime();
+}, { once: true });
 
 renderMenu();
 renderCart();

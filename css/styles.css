@@ -2591,3 +2591,133 @@ body.customer-page {
     width: 34px;
   }
 }
+
+.sold-out-badge,
+.menu-state {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 0.72rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.sold-out-badge,
+.menu-state.sold-out {
+  color: #8b2f26;
+  background: #f9d8d1;
+  border: 1px solid #e9aaa0;
+}
+
+.menu-item.sold-out,
+.staff-order-menu-item.sold-out {
+  opacity: 0.68;
+  background: #f1ede8;
+}
+
+.staff-menu-view {
+  display: grid;
+  gap: 18px;
+}
+
+.menu-item-form {
+  padding: 18px;
+  border: 1px solid #ddc4ad;
+  border-radius: 18px;
+  background: #fffaf4;
+  box-shadow: 0 10px 26px rgba(84, 48, 25, 0.08);
+}
+
+.menu-form-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(130px, 1fr));
+  gap: 12px;
+}
+
+.menu-form-flags,
+.menu-form-actions,
+.menu-management-actions,
+.menu-management-title-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.menu-form-flags,
+.menu-form-actions {
+  margin-top: 14px;
+}
+
+.menu-management-list,
+.menu-management-group,
+.menu-management-items {
+  display: grid;
+  gap: 12px;
+}
+
+.menu-management-group {
+  padding: 16px;
+  border-radius: 20px;
+  background: #f8eee3;
+}
+
+.menu-management-group:nth-child(2) {
+  background: #fff5dc;
+}
+
+.menu-management-group:nth-child(3) {
+  background: #e4f4ff;
+}
+
+.menu-management-group h3,
+.menu-management-card h4,
+.menu-management-card p {
+  margin: 0;
+}
+
+.menu-management-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 14px;
+  border: 1px solid rgba(113, 72, 41, 0.16);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.88);
+}
+
+.menu-management-card.is-archived {
+  opacity: 0.66;
+}
+
+.menu-management-card small {
+  color: #735b49;
+}
+
+.menu-state.archived {
+  color: #55483e;
+  background: #e4ded8;
+  border: 1px solid #c8beb5;
+}
+
+@media (max-width: 920px) {
+  .menu-form-grid {
+    grid-template-columns: repeat(2, minmax(140px, 1fr));
+  }
+
+  .menu-management-card {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .menu-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .menu-management-actions > button {
+    flex: 1 1 auto;
+  }
+}

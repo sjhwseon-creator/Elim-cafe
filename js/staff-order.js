@@ -46,11 +46,17 @@
   }
 
   function menuItem(itemId) {
-    return window.ELIM_MENU.flatMap((group) => group.items).find((item) => item.id === itemId);
+    return window.ELIM_MENU_STORE?.find(itemId) || null;
   }
 
   function variantPrice(item, variant) {
     return Number(item.price) + (variant === "ice" ? 0.5 : 0);
+  }
+
+  function isVariantAllowed(item, variant) {
+    if (!item) return false;
+    if (item.variant_mode === "hot_ice") return variant === "hot" || variant === "ice";
+    return variant === null;
   }
 
   function quantity(itemId, variant = null) {
@@ -61,7 +67,7 @@
     return Array.from(cart.entries()).map(([key, selectedQuantity]) => {
       const { itemId, variant } = parseCartKey(key);
       const item = menuItem(itemId);
-      return item ? {
+      return item?.active && !item.sold_out && isVariantAllowed(item, variant) ? {
         ...item,
         variant,
         quantity: selectedQuantity,
@@ -83,23 +89,24 @@
     const label = variant ? `${item.name} ${variant}` : item.name;
     return `
       <div class="staff-order-quantity" aria-label="${escapeHtml(label)} quantity">
-        <button type="button" data-guest-action="decrease" data-item-id="${escapeHtml(item.id)}" data-variant="${variant || ""}" ${selectedQuantity === 0 ? "disabled" : ""}>−</button>
+        <button type="button" data-guest-action="decrease" data-item-id="${escapeHtml(item.id)}" data-variant="${variant || ""}" ${selectedQuantity === 0 || item.sold_out ? "disabled" : ""}>−</button>
         <strong>${selectedQuantity}</strong>
-        <button type="button" data-guest-action="increase" data-item-id="${escapeHtml(item.id)}" data-variant="${variant || ""}">+</button>
+        <button type="button" data-guest-action="increase" data-item-id="${escapeHtml(item.id)}" data-variant="${variant || ""}" ${item.sold_out ? "disabled" : ""}>+</button>
       </div>
     `;
   }
 
   function renderMenu() {
-    menuRoot.innerHTML = window.ELIM_MENU.map((group) => `
+    const groups = window.ELIM_MENU_STORE?.grouped() || [];
+    menuRoot.innerHTML = groups.map((group) => `
       <section class="staff-order-category category-${group.category.toLowerCase()}">
         <h4>${escapeHtml(t(`category.${group.category.toLowerCase()}`))}</h4>
         <div class="staff-order-menu-items">
           ${group.items.map((item) => {
             if (item.variants?.length) {
               return `
-                <article class="staff-order-menu-item has-variants">
-                  <strong>${escapeHtml(item.name)}</strong>
+                <article class="staff-order-menu-item has-variants ${item.sold_out ? "sold-out" : ""}">
+                  <strong>${escapeHtml(item.name)} ${item.sold_out ? `<span class="sold-out-badge">${escapeHtml(t("menu.soldOut"))}</span>` : ""}</strong>
                   <div class="staff-order-variants">
                     ${item.variants.map((variant) => `
                       <div class="staff-order-variant">
@@ -112,8 +119,8 @@
               `;
             }
             return `
-              <article class="staff-order-menu-item">
-                <span><strong>${escapeHtml(item.name)}</strong><small>${formatEuro(item.price)}</small></span>
+              <article class="staff-order-menu-item ${item.sold_out ? "sold-out" : ""}">
+                <span><strong>${escapeHtml(item.name)} ${item.sold_out ? `<span class="sold-out-badge">${escapeHtml(t("menu.soldOut"))}</span>` : ""}</strong><small>${formatEuro(item.price)}</small></span>
                 ${quantityControls(item)}
               </article>
             `;
@@ -148,6 +155,11 @@
   }
 
   function updateQuantity(itemId, variant, change) {
+    const item = menuItem(itemId);
+    if (!item?.active || !isVariantAllowed(item, variant) || (item.sold_out && change > 0)) {
+      setMessage(t("menu.unavailable"), true);
+      return;
+    }
     const key = cartKey(itemId, variant);
     const nextQuantity = Math.max(0, (cart.get(key) || 0) + change);
     if (nextQuantity) cart.set(key, nextQuantity);
@@ -182,12 +194,21 @@
 
   async function submitGuestOrder() {
     if (submitButton.disabled) return;
+    submitButton.disabled = true;
+    clearButton.disabled = true;
+    await window.ELIM_MENU_STORE.load({ allowFallback: false });
     const rows = cartRows();
+    if (!rows.length) {
+      submitButton.disabled = false;
+      clearButton.disabled = cart.size === 0;
+      setMessage(t("menu.cartRemoved"), true);
+      renderMenu();
+      renderCart();
+      return;
+    }
     const name = customerName.value.trim() || "Guest";
     const paymentMethod = document.querySelector('input[name="staff-order-payment"]:checked')?.value || "cash";
 
-    submitButton.disabled = true;
-    clearButton.disabled = true;
     setMessage(t("message.savingGuest"));
 
     const { data, error } = await window.elimSupabase.rpc("staff_create_guest_order", {
@@ -243,6 +264,22 @@
     renderMenu();
     renderCart();
   });
+
+  const unsubscribeMenu = window.ELIM_MENU_STORE?.subscribe(() => {
+    let removed = false;
+    for (const key of [...cart.keys()]) {
+      const { itemId, variant } = parseCartKey(key);
+      const item = menuItem(itemId);
+      if (!item?.active || item.sold_out || !isVariantAllowed(item, variant)) {
+        cart.delete(key);
+        removed = true;
+      }
+    }
+    renderMenu();
+    renderCart();
+    if (removed) setMessage(t("menu.cartRemoved"), true);
+  });
+  window.addEventListener("pagehide", () => unsubscribeMenu?.(), { once: true });
 
   renderMenu();
   renderCart();

@@ -94,14 +94,9 @@ Any PayPal address, account holder, or IBAN placed in this file is inherently pu
 
 ## Menu updates
 
-The UI menu in `js/menu.js` and the trusted prices in `public.menu_items` must stay synchronized. A customer can change browser code, but `create_order` always saves the database price.
+After applying `supabase-menu-management.sql`, `public.menu_items` is the production source of truth for the customer menu, Guest Order, prices, availability, and variants. Authorized staff manage it from the Staff **Menu** tab. All order RPCs continue to calculate prices from the database.
 
-When changing a menu item, update both:
-
-1. `js/menu.js` for the customer display.
-2. The corresponding `menu_items` upsert in `supabase-security-migration.sql`, then run that upsert in Supabase.
-
-Menu IDs must match exactly and remain unique.
+`js/menu.js` is retained only as an offline/error fallback. It must never overwrite a successfully loaded Supabase menu. Menu IDs are generated once and remain stable when a display name changes, so historical orders and RPC requests remain compatible.
 
 ## Local testing
 

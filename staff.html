@@ -7,16 +7,18 @@
     <meta name="description" content="Elim Café staff order dashboard.">
     <title>Elim Café Staff</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="css/styles.css?v=20261108">
+    <link rel="stylesheet" href="css/styles.css?v=20261117">
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script defer src="js/supabase-config.js?v=20261025"></script>
-    <script defer src="js/menu.js?v=20261009"></script>
+    <script defer src="js/menu.js?v=20261117"></script>
+    <script defer src="js/menu-store.js?v=20261117"></script>
     <script defer src="js/receipt.js?v=20261115"></script>
     <script defer src="js/printer-bridge.js?v=20261018"></script>
-    <script defer src="js/staff-i18n.js?v=20261108"></script>
+    <script defer src="js/staff-i18n.js?v=20261117"></script>
     <script defer src="js/printer-test.js?v=20261108"></script>
-    <script defer src="js/staff.js?v=20261115"></script>
-    <script defer src="js/staff-order.js?v=20261108"></script>
+    <script defer src="js/staff.js?v=20261117"></script>
+    <script defer src="js/staff-menu.js?v=20261117"></script>
+    <script defer src="js/staff-order.js?v=20261117"></script>
   </head>
   <body class="staff-page">
     <header class="app-header">
@@ -61,6 +63,7 @@
           <button type="button" data-staff-view="customers" aria-pressed="false" data-staff-i18n="tabs.customers">Customers</button>
           <button type="button" data-staff-view="receipt" aria-pressed="false" data-staff-i18n="tabs.receipt">Receipt Settings</button>
           <button type="button" data-staff-view="guest-order" aria-pressed="false" data-staff-i18n="tabs.guest">Guest Order</button>
+          <button type="button" data-staff-view="menu-management" aria-pressed="false" data-staff-i18n="tabs.menuManagement">Menu</button>
         </nav>
 
         <div id="staff-orders-view">
@@ -318,6 +321,50 @@
               <div id="wallet-transactions" class="wallet-transactions empty-state">No transactions yet.</div>
             </section>
           </div>
+        </section>
+
+        <section id="staff-menu-view" class="staff-menu-view" aria-labelledby="staff-menu-heading" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow" data-staff-i18n="menu.manageEyebrow">Live customer menu</p>
+              <h2 id="staff-menu-heading" data-staff-i18n="tabs.menuManagement">Menu</h2>
+            </div>
+            <button id="menu-add-button" class="primary-button small-button" type="button" data-staff-i18n="menu.add">+ Add Menu Item</button>
+          </div>
+          <p id="menu-management-message" class="form-message" role="status"></p>
+
+          <form id="menu-item-form" class="menu-item-form" hidden>
+            <input id="menu-item-id" type="hidden">
+            <div class="menu-form-grid">
+              <label class="field"><span data-staff-i18n="menu.name">Menu name</span><input id="menu-item-name" type="text" maxlength="100" required></label>
+              <label class="field"><span data-staff-i18n="menu.category">Category</span>
+                <select id="menu-item-category" required>
+                  <option value="Coffee" data-staff-i18n="category.coffee">Coffee</option>
+                  <option value="Latte" data-staff-i18n="category.latte">Latte</option>
+                  <option value="Ade" data-staff-i18n="category.ade">Ade</option>
+                </select>
+              </label>
+              <label class="field"><span data-staff-i18n="menu.price">Base price</span><input id="menu-item-price" type="number" min="0" max="10000" step="0.01" required></label>
+              <label class="field"><span data-staff-i18n="menu.variantMode">Variants</span>
+                <select id="menu-item-variant-mode" required>
+                  <option value="hot_ice" data-staff-i18n="menu.hotIce">Hot + Ice</option>
+                  <option value="hot_only" data-staff-i18n="menu.hotOnly">Hot only</option>
+                  <option value="standard" data-staff-i18n="menu.standard">Standard</option>
+                </select>
+              </label>
+              <label class="field"><span data-staff-i18n="menu.displayOrder">Display order</span><input id="menu-item-display-order" type="number" min="0" max="100000" step="1" value="0" required></label>
+            </div>
+            <div class="menu-form-flags">
+              <label><input id="menu-item-active" type="checkbox" checked> <span data-staff-i18n="menu.active">Visible</span></label>
+              <label><input id="menu-item-sold-out" type="checkbox"> <span data-staff-i18n="menu.soldOut">Sold Out</span></label>
+            </div>
+            <div class="menu-form-actions">
+              <button class="primary-button small-button" type="submit" data-staff-i18n="common.save">Save</button>
+              <button id="menu-form-cancel" class="secondary-button small-button" type="button" data-staff-i18n="common.cancel">Cancel</button>
+            </div>
+          </form>
+
+          <div id="menu-management-list" class="menu-management-list empty-state" data-staff-i18n="menu.loading">Loading menu...</div>
         </section>
 
         <section id="staff-guest-order-view" class="staff-guest-order-view" aria-labelledby="guest-order-heading" hidden>

@@ -20,6 +20,7 @@ const staffOrdersView = document.querySelector("#staff-orders-view");
 const staffCustomersView = document.querySelector("#staff-customers-view");
 const staffReceiptView = document.querySelector("#staff-receipt-view");
 const staffGuestOrderView = document.querySelector("#staff-guest-order-view");
+const staffMenuView = document.querySelector("#staff-menu-view");
 const staffOrderSections = document.querySelectorAll('[data-staff-section="orders"]');
 const toggleArchivedOrders = document.querySelector("#toggle-archived-orders");
 const archivedOrdersContent = document.querySelector("#archived-orders-content");
@@ -314,9 +315,11 @@ function setStaffView(view) {
   const showCustomers = view === "customers";
   const showReceipt = view === "receipt";
   const showGuestOrder = view === "guest-order";
-  staffOrdersView.hidden = showCustomers || showGuestOrder;
+  const showMenuManagement = view === "menu-management";
+  staffOrdersView.hidden = showCustomers || showGuestOrder || showMenuManagement;
   staffCustomersView.hidden = !showCustomers;
   staffGuestOrderView.hidden = !showGuestOrder;
+  staffMenuView.hidden = !showMenuManagement;
   staffReceiptView.hidden = !showReceipt;
   staffOrderSections.forEach((section) => {
     section.hidden = view !== "orders";
@@ -1123,6 +1126,7 @@ async function stopRealtime() {
 async function handleSession(session) {
   if (!session?.user) {
     await stopRealtime();
+    await window.ELIM_MENU_STORE?.stopRealtime();
     orders = [];
     customers = [];
     selectedCustomerId = null;
@@ -1134,6 +1138,7 @@ async function handleSession(session) {
 
   if (!(await isAuthorizedStaff(session.user.id))) {
     await stopRealtime();
+    await window.ELIM_MENU_STORE?.stopRealtime();
     pendingLoginError = "This account is not authorized for the staff dashboard.";
     await window.elimSupabase.auth.signOut();
     showLogin(pendingLoginError, true);
@@ -1141,6 +1146,9 @@ async function handleSession(session) {
   }
 
   showDashboard();
+  const menuResult = await window.ELIM_MENU_STORE.load({ allowFallback: false });
+  if (menuResult.error) console.error("Could not load staff menu:", menuResult.error);
+  window.ELIM_MENU_STORE.startRealtime();
   await loadReceiptSettings();
   await loadOrders();
   subscribeToOrders();
@@ -1269,6 +1277,7 @@ toggleArchivedOrders.addEventListener("click", toggleArchivedOrderPanel);
 staffLogout.addEventListener("click", async () => {
   staffLogout.disabled = true;
   await stopRealtime();
+  await window.ELIM_MENU_STORE?.stopRealtime();
   const { error } = await window.elimSupabase.auth.signOut();
   staffLogout.disabled = false;
   if (error) {
@@ -1290,7 +1299,7 @@ document.addEventListener("elim:staff-languagechange", () => {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20261115");
+    navigator.serviceWorker.register("service-worker.js?v=20261117");
   });
 }
 
