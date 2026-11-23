@@ -21,6 +21,7 @@ const staffCustomersView = document.querySelector("#staff-customers-view");
 const staffReceiptView = document.querySelector("#staff-receipt-view");
 const staffGuestOrderView = document.querySelector("#staff-guest-order-view");
 const staffMenuView = document.querySelector("#staff-menu-view");
+const staffSponsoredEventsView = document.querySelector("#staff-sponsored-events-view");
 const staffOrderSections = document.querySelectorAll('[data-staff-section="orders"]');
 const toggleArchivedOrders = document.querySelector("#toggle-archived-orders");
 const archivedOrdersContent = document.querySelector("#archived-orders-content");
@@ -92,7 +93,8 @@ const receiptFields = {
 };
 
 const STATUSES = ["new", "preparing", "completed"];
-function paymentLabel(method) {
+function paymentLabel(method, order = null) {
+  if (order?.sponsored_event_id) return staffT("events.sponsored");
   if (method === "sepa") return staffT("payment.sepa");
   if (method === "cash") return staffT("payment.cash");
   if (method === "wallet") return "Elim Balance";
@@ -183,6 +185,17 @@ function orderItemLabel(item) {
   return `${item.item_name} - ${staffT(`variant.${item.variant}`)}`;
 }
 
+function sponsoredEventForOrder(order) {
+  const relationship = order.sponsored_events;
+  return Array.isArray(relationship) ? (relationship[0] || null) : (relationship || null);
+}
+
+function renderSponsoredOrderState(order) {
+  if (!order.sponsored_event_id) return "";
+  const sponsor = sponsoredEventForOrder(order)?.sponsor_name || staffT("events.sponsored");
+  return `<p class="order-sponsored-badge">🎁 <strong>${escapeHtml(staffT("events.sponsored"))}</strong> · ${escapeHtml(sponsor)}</p>`;
+}
+
 function printStatusText(order) {
   if (order.print_status === "printed") {
     return order.printed_at ? staffT("print.printed", { time: formatClock(order.printed_at) }) : staffT("print.printed", { time: "" });
@@ -263,7 +276,8 @@ function renderOrders() {
       </div>
 
       <p class="order-meta">${escapeHtml(order.customer_name)} · ${formatTime(order.created_at)}</p>
-      <p class="order-payment">${escapeHtml(staffT("orders.payment"))}: <strong>${escapeHtml(paymentLabel(order.payment_method))}</strong></p>
+      <p class="order-payment">${escapeHtml(staffT("orders.payment"))}: <strong>${escapeHtml(paymentLabel(order.payment_method, order))}</strong></p>
+      ${renderSponsoredOrderState(order)}
       ${renderNotificationState(order)}
 
       <ul class="order-items">
@@ -327,7 +341,8 @@ function renderArchivedOrders() {
         <span class="status-badge completed">${escapeHtml(staffT("archive.title"))}</span>
       </div>
       <p class="order-meta">${escapeHtml(order.customer_name)} · ${formatTime(order.created_at)}</p>
-      <p class="order-payment">${escapeHtml(staffT("orders.payment"))}: <strong>${escapeHtml(paymentLabel(order.payment_method))}</strong></p>
+      <p class="order-payment">${escapeHtml(staffT("orders.payment"))}: <strong>${escapeHtml(paymentLabel(order.payment_method, order))}</strong></p>
+      ${renderSponsoredOrderState(order)}
       <ul class="order-items">
         ${(order.order_items || []).map((item) => `
           <li>
@@ -350,10 +365,12 @@ function setStaffView(view) {
   const showReceipt = view === "receipt";
   const showGuestOrder = view === "guest-order";
   const showMenuManagement = view === "menu-management";
-  staffOrdersView.hidden = showCustomers || showGuestOrder || showMenuManagement;
+  const showSponsoredEvents = view === "sponsored-events";
+  staffOrdersView.hidden = showCustomers || showGuestOrder || showMenuManagement || showSponsoredEvents;
   staffCustomersView.hidden = !showCustomers;
   staffGuestOrderView.hidden = !showGuestOrder;
   staffMenuView.hidden = !showMenuManagement;
+  staffSponsoredEventsView.hidden = !showSponsoredEvents;
   staffReceiptView.hidden = !showReceipt;
   staffOrderSections.forEach((section) => {
     section.hidden = view !== "orders";
@@ -875,7 +892,7 @@ async function loadOrders({ processPrints = true } = {}) {
 
   const { data, error } = await window.elimSupabase
     .from("orders")
-    .select("id, order_number, customer_name, customer_user_id, total_price, payment_method, status, created_at, print_status, printed_at, print_attempts, printing_started_at, order_items(category, item_name, variant, quantity, unit_price), order_ready_notifications(status, attempts, last_error, sent_at, updated_at)")
+    .select("id, order_number, customer_name, customer_user_id, total_price, payment_method, status, created_at, print_status, printed_at, print_attempts, printing_started_at, sponsored_event_id, sponsored_amount, sponsored_events(sponsor_name), order_items(category, item_name, variant, quantity, unit_price), order_ready_notifications(status, attempts, last_error, sent_at, updated_at)")
     .is("archived_at", null)
     .order("created_at", { ascending: false });
 
@@ -913,7 +930,7 @@ async function loadArchivedOrders() {
   setMessage(archivedOrdersMessage, staffT("message.loadingArchive"));
   const { data, error } = await window.elimSupabase
     .from("orders")
-    .select("id, order_number, customer_name, total_price, payment_method, status, created_at, archived_at, order_items(category, item_name, variant, quantity, unit_price)")
+    .select("id, order_number, customer_name, total_price, payment_method, status, created_at, archived_at, sponsored_event_id, sponsored_amount, sponsored_events(sponsor_name), order_items(category, item_name, variant, quantity, unit_price)")
     .not("archived_at", "is", null)
     .order("archived_at", { ascending: false })
     .limit(250);
@@ -972,7 +989,7 @@ async function toggleArchivedOrderPanel() {
 async function loadOrderForPrint(orderId) {
   const { data, error } = await window.elimSupabase
     .from("orders")
-    .select("id, order_number, customer_name, total_price, payment_method, created_at, order_items(category, item_name, variant, quantity, unit_price)")
+    .select("id, order_number, customer_name, total_price, payment_method, created_at, sponsored_event_id, sponsored_amount, sponsored_events(sponsor_name), order_items(category, item_name, variant, quantity, unit_price)")
     .eq("id", orderId)
     .single();
 
@@ -1365,7 +1382,7 @@ document.addEventListener("elim:staff-languagechange", () => {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20261123");
+    navigator.serviceWorker.register("service-worker.js?v=20261123b");
   });
 }
 

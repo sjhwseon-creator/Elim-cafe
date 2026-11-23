@@ -215,6 +215,11 @@
     return items.reduce((sum, item) => sum + Number(item.unit_price || 0) * Number(item.quantity || 0), 0);
   }
 
+  function sponsoredEventForOrder(order) {
+    const relationship = order?.sponsored_events;
+    return Array.isArray(relationship) ? (relationship[0] || null) : (relationship || null);
+  }
+
   function totalLine(label, total, size) {
     const amount = formatEuro(total);
     const columns = columnsForSize(size);
@@ -243,6 +248,10 @@
       if (resolved.show_order_number) rows.push(...textRows(`Order #${printableText(order.order_number, 20)}`, detailOptions));
       if (resolved.show_customer_name && order.customer_name) rows.push(...textRows(order.customer_name, detailOptions));
       if (resolved.show_order_time) rows.push(...textRows(formatTime(order.created_at), detailOptions));
+      if (order.sponsored_event_id) {
+        const sponsor = sponsoredEventForOrder(order)?.sponsor_name;
+        rows.push(...textRows(sponsor ? `SPONSORED - ${sponsor}` : "SPONSORED", { ...detailOptions, bold: true }));
+      }
       rows.push(row(""));
     }
 
@@ -261,7 +270,11 @@
       const summaryOptions = { size: resolved.summary_size, align: resolved.summary_align };
       if (resolved.show_category_subtotal) rows.push(row(totalLine("Subtotal", categorySubtotal(items), resolved.summary_size), summaryOptions));
       if (resolved.show_total) rows.push(row(totalLine("Order total", order.total_price, resolved.summary_size), summaryOptions));
-      if (resolved.show_payment_method) rows.push(...textRows(PAYMENT_LABELS[order.payment_method] || "Payment not recorded", summaryOptions));
+      if (resolved.show_payment_method) {
+        rows.push(...textRows(order.sponsored_event_id
+          ? "SPONSORED / PAY EUR 0.00"
+          : (PAYMENT_LABELS[order.payment_method] || "Payment not recorded"), summaryOptions));
+      }
       rows.push(row(divider));
     }
 

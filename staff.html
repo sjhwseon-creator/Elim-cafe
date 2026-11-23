@@ -7,18 +7,19 @@
     <meta name="description" content="Elim Café staff order dashboard.">
     <title>Elim Café Staff</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="stylesheet" href="css/styles.css?v=20261123">
+    <link rel="stylesheet" href="css/styles.css?v=20261123b">
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script defer src="js/supabase-config.js?v=20261025"></script>
     <script defer src="js/menu.js?v=20261117"></script>
     <script defer src="js/menu-store.js?v=20261117"></script>
-    <script defer src="js/receipt.js?v=20261115"></script>
+    <script defer src="js/receipt.js?v=20261123b"></script>
     <script defer src="js/printer-bridge.js?v=20261018"></script>
-    <script defer src="js/staff-i18n.js?v=20261123"></script>
+    <script defer src="js/staff-i18n.js?v=20261123b"></script>
     <script defer src="js/printer-test.js?v=20261108"></script>
-    <script defer src="js/staff.js?v=20261123"></script>
+    <script defer src="js/staff.js?v=20261123b"></script>
+    <script defer src="js/staff-events.js?v=20261123b"></script>
     <script defer src="js/staff-menu.js?v=20261117"></script>
-    <script defer src="js/staff-order.js?v=20261117"></script>
+    <script defer src="js/staff-order.js?v=20261123b"></script>
   </head>
   <body class="staff-page">
     <header class="app-header">
@@ -64,6 +65,7 @@
           <button type="button" data-staff-view="receipt" aria-pressed="false" data-staff-i18n="tabs.receipt">Receipt Settings</button>
           <button type="button" data-staff-view="guest-order" aria-pressed="false" data-staff-i18n="tabs.guest">Guest Order</button>
           <button type="button" data-staff-view="menu-management" aria-pressed="false" data-staff-i18n="tabs.menuManagement">Menu</button>
+          <button type="button" data-staff-view="sponsored-events" aria-pressed="false" data-staff-i18n="tabs.sponsoredEvents">Sponsored Event</button>
         </nav>
 
         <div id="staff-orders-view">
@@ -367,6 +369,39 @@
           <div id="menu-management-list" class="menu-management-list empty-state" data-staff-i18n="menu.loading">Loading menu...</div>
         </section>
 
+        <section id="staff-sponsored-events-view" class="staff-sponsored-events-view" aria-labelledby="sponsored-events-heading" hidden>
+          <div class="section-heading">
+            <div>
+              <p class="eyebrow" data-staff-i18n="events.eyebrow">Special occasion</p>
+              <h2 id="sponsored-events-heading" data-staff-i18n="tabs.sponsoredEvents">Sponsored Event</h2>
+            </div>
+            <button id="refresh-sponsored-events" class="secondary-button small-button" type="button" data-staff-i18n="common.refresh">Refresh</button>
+          </div>
+
+          <article id="active-sponsored-event" class="active-sponsored-event" hidden></article>
+
+          <form id="sponsored-event-form" class="sponsored-event-form">
+            <h3 data-staff-i18n="events.create">Activate a Sponsored Event</h3>
+            <label class="field">
+              <span data-staff-i18n="events.sponsorName">Sponsor name</span>
+              <input id="sponsored-event-sponsor" type="text" maxlength="120" required>
+            </label>
+            <label class="field">
+              <span data-staff-i18n="events.publicMessage">Public message (optional)</span>
+              <textarea id="sponsored-event-message-input" rows="3" maxlength="1000"></textarea>
+            </label>
+            <div class="event-time-grid">
+              <label class="field"><span data-staff-i18n="events.start">Start (optional)</span><input id="sponsored-event-start" type="datetime-local"></label>
+              <label class="field"><span data-staff-i18n="events.end">End (optional)</span><input id="sponsored-event-end" type="datetime-local"></label>
+            </div>
+            <button id="activate-sponsored-event" class="primary-button" type="submit" data-staff-i18n="events.activate">Activate Event</button>
+          </form>
+          <p id="sponsored-events-message" class="form-message" role="status"></p>
+
+          <div class="event-history-heading"><h3 data-staff-i18n="events.past">Event history</h3></div>
+          <div id="sponsored-events-history" class="sponsored-events-history empty-state" data-staff-i18n="events.none">No Sponsored Events yet.</div>
+        </section>
+
         <section id="staff-guest-order-view" class="staff-guest-order-view" aria-labelledby="guest-order-heading" hidden>
           <div class="section-heading guest-order-heading">
             <div>
@@ -409,6 +444,11 @@
                 <label><input type="radio" name="staff-order-payment" value="paypal"> PayPal</label>
                  <label><input type="radio" name="staff-order-payment" value="sepa"> <span data-staff-i18n="payment.sepa">SEPA bank transfer</span></label>
               </fieldset>
+
+              <label id="guest-sponsored-option" class="guest-sponsored-option" hidden>
+                <input id="guest-apply-sponsorship" type="checkbox">
+                <span><strong data-staff-i18n="guest.applySponsored">Apply active Sponsored Event</strong><small id="guest-sponsored-name"></small></span>
+              </label>
 
                <button id="staff-order-submit" class="primary-button" type="button" disabled data-staff-i18n="guest.place">Place Guest Order</button>
                <button id="staff-order-clear" class="secondary-button" type="button" disabled data-staff-i18n="guest.clear">Clear Cart</button>

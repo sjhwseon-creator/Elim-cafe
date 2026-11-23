@@ -8,6 +8,10 @@ const customerName = document.querySelector("#customer-name");
 const checkoutCurrentBalance = document.querySelector("#checkout-current-balance");
 const checkoutOrderTotal = document.querySelector("#checkout-order-total");
 const checkoutBalanceAfter = document.querySelector("#checkout-balance-after");
+const checkoutSponsoredRow = document.querySelector("#checkout-sponsored-row");
+const checkoutSponsoredAmount = document.querySelector("#checkout-sponsored-amount");
+const checkoutYouPayRow = document.querySelector("#checkout-you-pay-row");
+const checkoutYouPay = document.querySelector("#checkout-you-pay");
 const reviewOrder = document.querySelector("#review-order");
 const placeOrder = document.querySelector("#place-order");
 const clearCart = document.querySelector("#clear-cart");
@@ -16,6 +20,7 @@ const formMessage = document.querySelector("#form-message");
 const confirmationScreen = document.querySelector("#confirmation-screen");
 const confirmationNumber = document.querySelector("#confirmation-number");
 const confirmationTotal = document.querySelector("#confirmation-total");
+const confirmationSponsored = document.querySelector("#confirmation-sponsored");
 const confirmationBalance = document.querySelector("#confirmation-balance");
 const newOrder = document.querySelector("#new-order");
 const customerAppShell = document.querySelector("#customer-app-shell");
@@ -48,6 +53,9 @@ const customerSignUpPassword = document.querySelector("#customer-sign-up-passwor
 const customerSignUpConfirmPassword = document.querySelector("#customer-sign-up-confirm-password");
 const customerResendConfirmation = document.querySelector("#customer-resend-confirmation");
 const customerAuthMessage = document.querySelector("#customer-auth-message");
+const sponsoredEventBanner = document.querySelector("#sponsored-event-banner");
+const sponsoredEventTitle = document.querySelector("#sponsored-event-title");
+const sponsoredEventMessage = document.querySelector("#sponsored-event-message");
 
 let currentMessage = { key: "", variables: {}, isError: false };
 let lastConfirmation = null;
@@ -62,6 +70,9 @@ let menuStoreUnsubscribe = null;
 let customerOrderHistory = [];
 let customerOrderHistoryHasMore = false;
 let customerOrderHistoryLoading = false;
+let currentSponsoredEvent = null;
+let sponsoredEventChannel = null;
+let sponsoredEventRefreshTimer = null;
 const ORDER_HISTORY_BATCH_SIZE = 20;
 const customerOrderChannels = new Map();
 const notifiedOrderIds = new Set();
@@ -111,6 +122,63 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+function renderSponsoredEvent() {
+  const active = Boolean(currentSponsoredEvent);
+  sponsoredEventBanner.hidden = !active;
+  if (active) {
+    sponsoredEventTitle.textContent = t("sponsored.bannerTitle", { sponsor: currentSponsoredEvent.sponsor_name });
+    sponsoredEventMessage.textContent = currentSponsoredEvent.message || "";
+    sponsoredEventMessage.hidden = !currentSponsoredEvent.message;
+  }
+  renderWalletCheckout();
+  if (!orderSummary.hidden) renderSummary();
+}
+
+async function loadCurrentSponsoredEvent() {
+  if (!currentCustomerProfile || !window.elimSupabase) {
+    currentSponsoredEvent = null;
+    renderSponsoredEvent();
+    return;
+  }
+
+  const { data, error } = await window.elimSupabase
+    .from("sponsored_events")
+    .select("id, sponsor_name, message, starts_at, ends_at, active")
+    .eq("active", true)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Could not load current Sponsored Event:", error);
+    return;
+  }
+  currentSponsoredEvent = data || null;
+  renderSponsoredEvent();
+}
+
+async function stopSponsoredEventUpdates() {
+  if (sponsoredEventRefreshTimer) {
+    window.clearInterval(sponsoredEventRefreshTimer);
+    sponsoredEventRefreshTimer = null;
+  }
+  if (sponsoredEventChannel) {
+    await window.elimSupabase?.removeChannel(sponsoredEventChannel);
+    sponsoredEventChannel = null;
+  }
+  currentSponsoredEvent = null;
+  renderSponsoredEvent();
+}
+
+function startSponsoredEventUpdates() {
+  if (!currentCustomerProfile || sponsoredEventChannel) return;
+  sponsoredEventChannel = window.elimSupabase
+    .channel("elim-customer-sponsored-event")
+    .on("postgres_changes", { event: "*", schema: "public", table: "sponsored_events" }, loadCurrentSponsoredEvent)
+    .subscribe();
+  sponsoredEventRefreshTimer = window.setInterval(loadCurrentSponsoredEvent, 30000);
+}
+
 function setAuthMessage(key = "", isError = false) {
   authMessage = { key, isError };
   customerAuthMessage.textContent = key ? t(key) : "";
@@ -143,7 +211,7 @@ async function getServiceWorkerRegistration() {
   if (!supportsPushNotifications()) return null;
   const existingRegistration = await navigator.serviceWorker.getRegistration();
   if (existingRegistration) return existingRegistration;
-  return navigator.serviceWorker.register("service-worker.js?v=20261123");
+  return navigator.serviceWorker.register("service-worker.js?v=20261123b");
 }
 
 async function savePushSubscription(subscription) {
@@ -419,6 +487,7 @@ function renderCustomerOrderHistory() {
         }).join("")}
       </ul>
       <div class="customer-history-total"><span>${escapeHtml(t("history.total"))}</span><strong>${formatEuro(order.total_price)}</strong></div>
+      ${order.sponsored_event_id ? `<p class="history-sponsored-badge">🎁 ${escapeHtml(t("sponsored.historyBadge"))}</p>` : ""}
     </article>
   `).join("");
 }
@@ -438,7 +507,7 @@ async function loadCustomerOrderHistory({ reset = false } = {}) {
   const start = customerOrderHistory.length;
   const { data, error } = await window.elimSupabase
     .from("orders")
-    .select("id, order_number, created_at, total_price, status, order_items(item_name, category, variant, quantity, unit_price)")
+    .select("id, order_number, created_at, total_price, status, sponsored_event_id, sponsored_amount, order_items(item_name, category, variant, quantity, unit_price)")
     .eq("customer_user_id", currentCustomerProfile.user_id)
     .order("created_at", { ascending: false })
     .range(start, start + ORDER_HISTORY_BATCH_SIZE);
@@ -488,6 +557,7 @@ async function loadCustomerAccount(session) {
   if (!session?.user) {
     await window.ELIM_MENU_STORE?.stopRealtime();
     await stopWatchingCustomerOrders();
+    await stopSponsoredEventUpdates();
     currentCustomerProfile = null;
     currentCustomerBalance = 0;
     customerOrderHistory = [];
@@ -515,6 +585,7 @@ async function loadCustomerAccount(session) {
     currentCustomerProfile = null;
     currentCustomerBalance = 0;
     await stopWatchingCustomerOrders();
+    await stopSponsoredEventUpdates();
     renderCustomerAccount();
     showAuthGate();
     setAuthMessage("auth.profileFailed", true);
@@ -525,6 +596,7 @@ async function loadCustomerAccount(session) {
     currentCustomerProfile = null;
     currentCustomerBalance = 0;
     await stopWatchingCustomerOrders();
+    await stopSponsoredEventUpdates();
     renderCustomerAccount();
     showAuthGate();
     setAuthMessage("auth.inactive", true);
@@ -535,6 +607,8 @@ async function loadCustomerAccount(session) {
   currentCustomerBalance = Number(walletResult.data?.balance || 0);
   await window.ELIM_MENU_STORE.load();
   window.ELIM_MENU_STORE.startRealtime();
+  await loadCurrentSponsoredEvent();
+  startSponsoredEventUpdates();
   if (!customerName.value.trim()) customerName.value = currentCustomerProfile.display_name;
   renderCustomerAccount();
   showCustomerApp();
@@ -658,6 +732,7 @@ async function signOutCustomer() {
   currentCustomerProfile = null;
   currentCustomerBalance = 0;
   await stopWatchingCustomerOrders();
+  await stopSponsoredEventUpdates();
   await window.ELIM_MENU_STORE?.stopRealtime();
   cart.clear();
   lastConfirmation = null;
@@ -761,10 +836,15 @@ function getTotal(rows = getCartRows()) {
 
 function renderWalletCheckout(rows = getCartRows()) {
   const orderTotal = getTotal(rows);
-  const balanceAfter = currentCustomerBalance - orderTotal;
+  const sponsored = Boolean(currentSponsoredEvent);
+  const balanceAfter = sponsored ? currentCustomerBalance : currentCustomerBalance - orderTotal;
   checkoutCurrentBalance.textContent = formatEuro(currentCustomerBalance);
   checkoutOrderTotal.textContent = formatEuro(orderTotal);
   checkoutBalanceAfter.textContent = formatEuro(balanceAfter);
+  checkoutSponsoredRow.hidden = !sponsored;
+  checkoutYouPayRow.hidden = !sponsored;
+  checkoutSponsoredAmount.textContent = `-${formatEuro(orderTotal)}`;
+  checkoutYouPay.textContent = formatEuro(sponsored ? 0 : orderTotal);
   setBalanceTone(checkoutCurrentBalance, currentCustomerBalance);
   setBalanceTone(checkoutBalanceAfter, balanceAfter);
 }
@@ -934,13 +1014,15 @@ function renderSummary() {
 
   setMessage();
   const total = getTotal(rows);
-  const balanceAfter = currentCustomerBalance - total;
+  const sponsored = Boolean(currentSponsoredEvent);
+  const balanceAfter = sponsored ? currentCustomerBalance : currentCustomerBalance - total;
   orderSummary.innerHTML = `
     <strong>${escapeHtml(t("order.confirmFor", { name }))}</strong>
     <ul>
       ${rows.map((item) => `<li>${item.quantity} x ${escapeHtml(getDisplayName(item))} - ${formatEuro(item.price * item.quantity)}</li>`).join("")}
     </ul>
     <p><strong>${escapeHtml(t("order.total", { total: formatEuro(total) }))}</strong></p>
+    ${sponsored ? `<p class="summary-sponsored">🎁 <strong>${escapeHtml(t("sponsored.review", { sponsor: currentSponsoredEvent.sponsor_name }))}</strong><br>${escapeHtml(t("sponsored.youPayAmount", { amount: formatEuro(0) }))}</p>` : ""}
     <p>${escapeHtml(t("wallet.currentBalance"))}: <strong class="${currentCustomerBalance < 0 ? "negative-balance" : ""}">${formatEuro(currentCustomerBalance)}</strong></p>
     <p>${escapeHtml(t("wallet.balanceAfter"))}: <strong class="${balanceAfter < 0 ? "negative-balance" : ""}">${formatEuro(balanceAfter)}</strong></p>
   `;
@@ -957,6 +1039,10 @@ function renderConfirmation() {
   confirmationTotal.textContent = t("order.total", {
     total: formatEuro(lastConfirmation.totalPrice)
   });
+  confirmationSponsored.hidden = !lastConfirmation.sponsored;
+  confirmationSponsored.textContent = lastConfirmation.sponsored
+    ? `🎁 ${t("sponsored.confirmation", { sponsor: lastConfirmation.sponsorName || t("sponsored.defaultSponsor") })}`
+    : "";
   const hasWalletBalance = Number.isFinite(lastConfirmation.newBalance);
   confirmationBalance.hidden = !hasWalletBalance;
   if (hasWalletBalance) {
@@ -1025,10 +1111,14 @@ async function submitOrder() {
     id: order.id,
     orderNumber: order.order_number,
     totalPrice: Number(order.total_price),
-    newBalance: Number(order.balance)
+    newBalance: Number(order.balance),
+    sponsored: Boolean(order.sponsored),
+    sponsoredAmount: Number(order.sponsored_amount || 0),
+    sponsorName: order.sponsor_name || ""
   };
   currentCustomerBalance = Number(order.balance);
   customerOrderHistory = [];
+  await loadCurrentSponsoredEvent();
   renderCustomerAccount();
   if (currentCustomerProfile && order.id) {
     watchCustomerOrder({ id: order.id, order_number: order.order_number });
@@ -1115,6 +1205,7 @@ document.addEventListener("elim:languagechange", () => {
   if (!orderSummary.hidden) renderSummary();
   renderConfirmation();
   renderCustomerAccount();
+  renderSponsoredEvent();
   if (!customerOrderHistoryOverlay.hidden) renderCustomerOrderHistory();
   customerAuthMessage.textContent = authMessage.key ? t(authMessage.key) : "";
   notificationMessage.textContent = notificationMessageState.key ? t(notificationMessageState.key) : "";
@@ -1135,7 +1226,7 @@ if ("serviceWorker" in navigator) {
     showOrderReady({ id: payload.orderId, order_number: payload.orderNumber });
   });
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20261123");
+    navigator.serviceWorker.register("service-worker.js?v=20261123b");
   });
 }
 
@@ -1162,7 +1253,11 @@ menuStoreUnsubscribe = window.ELIM_MENU_STORE?.subscribe(handleMenuChange) || nu
 window.addEventListener("pagehide", () => {
   menuStoreUnsubscribe?.();
   window.ELIM_MENU_STORE?.stopRealtime();
+  stopSponsoredEventUpdates();
 }, { once: true });
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && currentCustomerProfile) loadCurrentSponsoredEvent();
+});
 
 renderMenu();
 renderCart();

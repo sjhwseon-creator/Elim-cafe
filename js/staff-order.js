@@ -11,7 +11,12 @@
   const messageElement = document.querySelector("#staff-order-message");
   const guestTotal = document.querySelector("#guest-account-total");
   const guestOrderCount = document.querySelector("#guest-account-order-count");
+  const sponsoredOption = document.querySelector("#guest-sponsored-option");
+  const applySponsorship = document.querySelector("#guest-apply-sponsorship");
+  const sponsoredName = document.querySelector("#guest-sponsored-name");
+  const paymentOptions = document.querySelector(".staff-order-payment-options");
   const cart = new Map();
+  let activeSponsoredEvent = null;
   const t = (key, variables = {}) => window.ELIM_STAFF_I18N?.t(key, variables) || key;
 
   function formatEuro(value) {
@@ -30,6 +35,17 @@
   function setMessage(message = "", isError = false) {
     messageElement.textContent = message;
     messageElement.classList.toggle("error", isError);
+  }
+
+  function renderSponsorshipOption() {
+    const available = Boolean(activeSponsoredEvent);
+    sponsoredOption.hidden = !available;
+    if (!available) applySponsorship.checked = false;
+    sponsoredName.textContent = available ? activeSponsoredEvent.sponsor_name : "";
+    paymentOptions.classList.toggle("sponsorship-applied", available && applySponsorship.checked);
+    paymentOptions.querySelectorAll("input").forEach((input) => {
+      input.disabled = available && applySponsorship.checked;
+    });
   }
 
   function cartKey(itemId, variant = null) {
@@ -208,12 +224,14 @@
     }
     const name = customerName.value.trim() || "Guest";
     const paymentMethod = document.querySelector('input[name="staff-order-payment"]:checked')?.value || "cash";
+    const sponsorshipRequested = Boolean(activeSponsoredEvent && applySponsorship.checked);
 
     setMessage(t("message.savingGuest"));
 
     const { data, error } = await window.elimSupabase.rpc("staff_create_guest_order", {
       p_customer_name: name,
       p_payment_method: paymentMethod,
+      p_apply_sponsorship: sponsorshipRequested,
       p_items: rows.map((item) => ({
         item_id: item.id,
         variant: item.variant,
@@ -233,9 +251,14 @@
     guestOrderCount.textContent = String(data.guest_order_count || 0);
     cart.clear();
     customerName.value = "Guest";
+    applySponsorship.checked = false;
+    renderSponsorshipOption();
     renderMenu();
     renderCart();
-    setMessage(`Order #${data.order_number} received · ${formatEuro(data.total_price)} · ${paymentMethod.toUpperCase()}. It is queued for automatic category printing.`);
+    setMessage(data.sponsored
+      ? t("guest.sponsoredSuccess", { number: data.order_number, total: formatEuro(data.total_price), sponsor: data.sponsor_name || "" })
+      : `Order #${data.order_number} received · ${formatEuro(data.total_price)} · ${paymentMethod.toUpperCase()}. It is queued for automatic category printing.`);
+    window.ELIM_SPONSORED_EVENTS?.refresh({ quiet: true });
     document.dispatchEvent(new CustomEvent("elim:guestordercreated", { detail: data }));
   }
 
@@ -257,6 +280,11 @@
   cartRoot.addEventListener("click", handleQuantityClick);
   submitButton.addEventListener("click", submitGuestOrder);
   clearButton.addEventListener("click", clearCart);
+  applySponsorship.addEventListener("change", renderSponsorshipOption);
+  document.addEventListener("elim:sponsoredeventchange", (event) => {
+    activeSponsoredEvent = event.detail?.event || null;
+    renderSponsorshipOption();
+  });
   document.addEventListener("elim:staffviewchange", (event) => {
     if (event.detail?.view === "guest-order") loadGuestAccount();
   });
@@ -283,4 +311,5 @@
 
   renderMenu();
   renderCart();
+  renderSponsorshipOption();
 })();

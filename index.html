@@ -11,14 +11,14 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600;700&amp;family=Nunito:wght@500;600;700;800;900&amp;display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/styles.css?v=20261123">
+    <link rel="stylesheet" href="css/styles.css?v=20261123b">
     <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script defer src="js/supabase-config.js?v=20261025"></script>
     <script defer src="js/menu.js?v=20261117"></script>
     <script defer src="js/menu-store.js?v=20261117"></script>
     <script defer src="js/notification-config.js?v=20261102"></script>
-    <script defer src="js/i18n.js?v=20261123"></script>
-    <script defer src="js/customer.js?v=20261123"></script>
+    <script defer src="js/i18n.js?v=20261123b"></script>
+    <script defer src="js/customer.js?v=20261123b"></script>
   </head>
   <body class="customer-page">
     <div id="customer-app-shell" hidden>
@@ -52,6 +52,16 @@
         <p class="header-note" aria-hidden="true"><span data-i18n="header.note">Ein bisschen Freude<br>in jeder Tasse</span> <span>♥</span></p>
       </div>
     </header>
+
+    <section id="sponsored-event-banner" class="sponsored-event-banner" hidden aria-live="polite">
+      <span class="sponsored-event-icon" aria-hidden="true">🎉</span>
+      <div>
+        <p class="eyebrow" data-i18n="sponsored.active">Gesponserte Aktion aktiv</p>
+        <h2 id="sponsored-event-title"></h2>
+        <p id="sponsored-event-message" hidden></p>
+        <strong data-i18n="sponsored.balanceUnaffected">Dein Elim-Guthaben wird für diese Bestellung nicht belastet.</strong>
+      </div>
+    </section>
 
     <main class="layout">
       <section class="panel menu-panel" aria-labelledby="menu-heading">
@@ -95,6 +105,14 @@
           <div>
             <dt data-i18n="wallet.orderTotal">Bestellwert</dt>
             <dd id="checkout-order-total">€0.00</dd>
+          </div>
+          <div id="checkout-sponsored-row" class="sponsored-checkout-row" hidden>
+            <dt data-i18n="sponsored.sponsored">Gesponsert</dt>
+            <dd id="checkout-sponsored-amount">-€0.00</dd>
+          </div>
+          <div id="checkout-you-pay-row" class="sponsored-checkout-row" hidden>
+            <dt data-i18n="sponsored.youPay">Du zahlst</dt>
+            <dd id="checkout-you-pay">€0.00</dd>
           </div>
           <div>
             <dt data-i18n="wallet.balanceAfter">Guthaben danach</dt>
@@ -193,6 +211,7 @@
         <h2 data-i18n="confirmation.received">Bestellung erhalten!</h2>
         <p id="confirmation-number" class="order-number"></p>
         <p id="confirmation-total" class="confirmation-total"></p>
+        <p id="confirmation-sponsored" class="confirmation-sponsored" hidden></p>
         <p id="confirmation-balance" class="confirmation-balance" hidden></p>
         <p data-i18n="confirmation.wait">Bitte warte auf deine Bestellung.</p>
         <button id="confirmation-notification-enable" class="notification-opt-in-button" type="button" hidden data-i18n="notification.enable">Bestellbenachrichtigungen aktivieren</button>
