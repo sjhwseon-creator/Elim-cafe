@@ -101,6 +101,29 @@ function convertVapidKeysToJwk(publicKey: string, privateKey: string) {
   };
 }
 
+function pushFailureDetails(error: unknown) {
+  const candidate = error as {
+    status?: number;
+    statusCode?: number;
+    response?: { status?: number };
+    message?: string;
+  };
+  const statusCode = Number(
+    candidate?.response?.status
+      ?? candidate?.statusCode
+      ?? candidate?.status
+      ?? 0
+  );
+  const rawMessage = error instanceof Error ? error.message : String(error);
+  const safeMessage = rawMessage
+    .replace(/https?:\/\/\S+/gi, "[push endpoint]")
+    .slice(0, 300);
+  return {
+    statusCode,
+    message: statusCode ? `Push service ${statusCode}: ${safeMessage}` : safeMessage
+  };
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
@@ -229,14 +252,12 @@ Deno.serve(async (request) => {
         });
         return { id: subscription.id, sent: true };
       } catch (error) {
-        const statusCode = error instanceof webpush.PushMessageError
-          ? error.response.status
-          : Number((error as { statusCode?: number }).statusCode || 0);
+        const { statusCode, message: failureMessage } = pushFailureDetails(error);
         const subscriptionIsGone = [404, 410].includes(statusCode);
         if (subscriptionIsGone) {
           await admin.from("push_subscriptions").delete().eq("id", subscription.id);
         }
-        throw error;
+        throw new Error(failureMessage);
       }
     }));
 

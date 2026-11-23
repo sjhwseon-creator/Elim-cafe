@@ -192,6 +192,39 @@ function printStatusText(order) {
   return staffT("print.pending");
 }
 
+function orderNotification(order) {
+  const relationship = order.order_ready_notifications;
+  return Array.isArray(relationship) ? (relationship[0] || null) : (relationship || null);
+}
+
+function notificationStatusText(status) {
+  return staffT(`notification.${status || "pending"}`);
+}
+
+function readableNotificationError(value) {
+  return String(value || "")
+    .replace(/https?:\/\/\S+/gi, "[push endpoint]")
+    .replace(/\b(p256dh|auth)\s*[:=]\s*\S+/gi, "$1=[hidden]")
+    .slice(0, 180);
+}
+
+function renderNotificationState(order) {
+  if (!order.customer_user_id) return "";
+  const notification = orderNotification(order);
+  const status = notification?.status || "pending";
+  const retryable = status === "failed" || status === "no_subscription";
+  const errorText = status === "failed" && notification?.last_error
+    ? `<small class="notification-error">${escapeHtml(readableNotificationError(notification.last_error))}</small>`
+    : "";
+  return `
+    <div class="notification-state ${escapeHtml(status)}">
+      <span>${escapeHtml(staffT("notification.label"))}: <strong>${escapeHtml(notificationStatusText(status))}</strong></span>
+      ${errorText}
+      ${retryable ? `<button class="secondary-button small-button" type="button" data-retry-notification-id="${escapeHtml(order.id)}">${escapeHtml(staffT("notification.retry"))}</button>` : ""}
+    </div>
+  `;
+}
+
 function showLogin(message = "", isError = false) {
   loginPanel.hidden = false;
   staffDashboard.hidden = true;
@@ -231,6 +264,7 @@ function renderOrders() {
 
       <p class="order-meta">${escapeHtml(order.customer_name)} · ${formatTime(order.created_at)}</p>
       <p class="order-payment">${escapeHtml(staffT("orders.payment"))}: <strong>${escapeHtml(paymentLabel(order.payment_method))}</strong></p>
+      ${renderNotificationState(order)}
 
       <ul class="order-items">
         ${(order.order_items || []).map((item) => `
@@ -841,7 +875,7 @@ async function loadOrders({ processPrints = true } = {}) {
 
   const { data, error } = await window.elimSupabase
     .from("orders")
-    .select("id, order_number, customer_name, total_price, payment_method, status, created_at, print_status, printed_at, print_attempts, printing_started_at, order_items(category, item_name, variant, quantity, unit_price)")
+    .select("id, order_number, customer_name, customer_user_id, total_price, payment_method, status, created_at, print_status, printed_at, print_attempts, printing_started_at, order_items(category, item_name, variant, quantity, unit_price), order_ready_notifications(status, attempts, last_error, sent_at, updated_at)")
     .is("archived_at", null)
     .order("created_at", { ascending: false });
 
@@ -1103,12 +1137,38 @@ async function updateOrderStatus(orderId, status) {
   }
 }
 
+async function retryOrderReadyNotification(orderId, button) {
+  button.disabled = true;
+  setMessage(staffMessage, staffT("notification.retrying"));
+  const { error: resetError } = await window.elimSupabase.rpc("staff_retry_order_ready_notification", {
+    p_order_id: Number(orderId)
+  });
+  if (resetError) {
+    console.error("Could not queue notification retry:", resetError);
+    button.disabled = false;
+    setMessage(staffMessage, `${staffT("notification.retryFailed")} ${resetError.message}`, true);
+    return;
+  }
+
+  const { error: invokeError } = await window.elimSupabase.functions.invoke("send-order-ready", {
+    body: { order_id: orderId }
+  });
+  if (invokeError) {
+    console.error("Could not invoke notification retry:", invokeError);
+    setMessage(staffMessage, `${staffT("notification.retryFailed")} ${invokeError.message}`, true);
+  } else {
+    setMessage(staffMessage, staffT("notification.retryQueued"));
+  }
+  await loadOrders({ processPrints: false });
+}
+
 function subscribeToOrders() {
   if (realtimeChannel) return;
   realtimeChannel = window.elimSupabase
     .channel("elim-cafe-staff-orders")
     .on("postgres_changes", { event: "*", schema: "public", table: "orders" }, () => loadOrders())
     .on("postgres_changes", { event: "*", schema: "public", table: "order_items" }, () => loadOrders())
+    .on("postgres_changes", { event: "*", schema: "public", table: "order_ready_notifications" }, () => loadOrders({ processPrints: false }))
     .subscribe((status) => {
       if (status === "SUBSCRIBED") setMessage(staffMessage, staffT("message.live"));
       if (status === "CHANNEL_ERROR") {
@@ -1195,6 +1255,12 @@ async function initializeStaffApp() {
 }
 
 ordersList.addEventListener("click", (event) => {
+  const retryNotificationButton = event.target.closest("[data-retry-notification-id]");
+  if (retryNotificationButton) {
+    retryOrderReadyNotification(retryNotificationButton.dataset.retryNotificationId, retryNotificationButton);
+    return;
+  }
+
   const reprintButton = event.target.closest("[data-reprint-id]");
   if (reprintButton) {
     enqueuePrint(reprintButton.dataset.reprintId, { force: true, automatic: false });
@@ -1299,7 +1365,7 @@ document.addEventListener("elim:staff-languagechange", () => {
 
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20261117");
+    navigator.serviceWorker.register("service-worker.js?v=20261123");
   });
 }
 

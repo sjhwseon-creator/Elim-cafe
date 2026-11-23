@@ -101,3 +101,22 @@ left join public.order_ready_notifications as n on n.order_id = o.id
 order by o.created_at desc
 limit 20;
 ```
+
+## 8. Customer history and notification recovery upgrade
+
+Run `supabase-customer-history-notification-recovery.sql` before deploying the
+matching web files. It adds customer-safe `order_items` history access, Staff
+read-only visibility of delivery status, Realtime status updates, and the
+secured `staff_retry_order_ready_notification(bigint)` RPC.
+
+Redeploy `send-order-ready` after this upgrade because its push error handling
+now recognizes status codes from multiple error shapes and deletes
+subscriptions only for definite HTTP 404/410 responses:
+
+```powershell
+npx supabase@latest functions deploy send-order-ready --no-verify-jwt
+```
+
+The existing Database Webhook remains unchanged. It still handles INSERT events
+on `public.order_ready_notifications`. Staff retries reuse the existing row,
+reset it through the secured RPC, and invoke the same Edge Function directly.

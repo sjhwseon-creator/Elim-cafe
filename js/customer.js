@@ -22,6 +22,12 @@ const customerAppShell = document.querySelector("#customer-app-shell");
 const customerAccountSummary = document.querySelector("#customer-account-summary");
 const customerAccountGreeting = document.querySelector("#customer-account-greeting");
 const customerAccountBalance = document.querySelector("#customer-account-balance");
+const customerOrderHistoryButton = document.querySelector("#customer-order-history-button");
+const customerOrderHistoryOverlay = document.querySelector("#customer-order-history");
+const customerOrderHistoryClose = document.querySelector("#customer-order-history-close");
+const customerOrderHistoryList = document.querySelector("#customer-order-history-list");
+const customerOrderHistoryMessage = document.querySelector("#customer-order-history-message");
+const customerOrderHistoryMore = document.querySelector("#customer-order-history-more");
 const customerSignOut = document.querySelector("#customer-sign-out");
 const notificationToggle = document.querySelector("#notification-toggle");
 const notificationMessage = document.querySelector("#notification-message");
@@ -53,6 +59,10 @@ let currentPushSubscription = null;
 let orderReadyAudioContext = null;
 let lastReadyOrderNumber = null;
 let menuStoreUnsubscribe = null;
+let customerOrderHistory = [];
+let customerOrderHistoryHasMore = false;
+let customerOrderHistoryLoading = false;
+const ORDER_HISTORY_BATCH_SIZE = 20;
 const customerOrderChannels = new Map();
 const notifiedOrderIds = new Set();
 
@@ -133,7 +143,7 @@ async function getServiceWorkerRegistration() {
   if (!supportsPushNotifications()) return null;
   const existingRegistration = await navigator.serviceWorker.getRegistration();
   if (existingRegistration) return existingRegistration;
-  return navigator.serviceWorker.register("service-worker.js?v=20261117");
+  return navigator.serviceWorker.register("service-worker.js?v=20261123");
 }
 
 async function savePushSubscription(subscription) {
@@ -158,9 +168,12 @@ async function savePushSubscription(subscription) {
 function renderNotificationControls() {
   const signedIn = Boolean(currentCustomerProfile);
   const enabled = Boolean(currentPushSubscription);
+  const denied = supportsPushNotifications() && Notification.permission === "denied";
   notificationToggle.hidden = !signedIn || !supportsPushNotifications();
-  notificationToggle.textContent = t(enabled ? "notification.disable" : "notification.enable");
+  notificationToggle.disabled = denied;
+  notificationToggle.textContent = t(denied ? "notification.blocked" : (enabled ? "notification.disable" : "notification.enable"));
   confirmationNotificationEnable.hidden = !signedIn || enabled || !supportsPushNotifications();
+  confirmationNotificationEnable.disabled = denied;
 }
 
 async function refreshPushSubscription() {
@@ -170,10 +183,21 @@ async function refreshPushSubscription() {
     return;
   }
 
+  if (Notification.permission === "denied") {
+    setNotificationMessage("notification.denied", true);
+    renderNotificationControls();
+    return;
+  }
+
   try {
     const registration = await getServiceWorkerRegistration();
     currentPushSubscription = await registration?.pushManager.getSubscription() || null;
-    if (currentPushSubscription) await savePushSubscription(currentPushSubscription);
+    if (currentPushSubscription && Notification.permission === "granted") {
+      await savePushSubscription(currentPushSubscription);
+    }
+    if (notificationMessageState.key === "notification.denied" && Notification.permission === "granted") {
+      setNotificationMessage();
+    }
   } catch (error) {
     console.error("Could not read push subscription:", error);
   }
@@ -348,6 +372,102 @@ function renderCustomerAccount() {
   renderWalletCheckout();
 }
 
+function historyLocale() {
+  return { de: "de-DE", en: "en-IE", ko: "ko-KR", zh: "zh-CN" }[window.ELIM_I18N.getLanguage()] || "de-DE";
+}
+
+function formatHistoryDate(value) {
+  return new Intl.DateTimeFormat(historyLocale(), {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  }).format(new Date(value));
+}
+
+function historyStatusLabel(status) {
+  return t(`history.status.${status}`);
+}
+
+function renderCustomerOrderHistory() {
+  customerOrderHistoryMore.hidden = !customerOrderHistoryHasMore;
+  customerOrderHistoryMore.disabled = customerOrderHistoryLoading;
+
+  if (!customerOrderHistory.length) {
+    customerOrderHistoryList.className = "customer-history-list empty-state";
+    customerOrderHistoryList.textContent = customerOrderHistoryLoading ? t("history.loading") : t("history.empty");
+    return;
+  }
+
+  customerOrderHistoryList.className = "customer-history-list";
+  customerOrderHistoryList.innerHTML = customerOrderHistory.map((order) => `
+    <article class="customer-history-order">
+      <div class="customer-history-order-heading">
+        <div>
+          <h3>${escapeHtml(t("history.orderNumber", { number: order.order_number }))}</h3>
+          <time datetime="${escapeHtml(order.created_at)}">${escapeHtml(formatHistoryDate(order.created_at))}</time>
+        </div>
+        <span class="status-badge ${escapeHtml(order.status)}">${escapeHtml(historyStatusLabel(order.status))}</span>
+      </div>
+      <ul>
+        ${(order.order_items || []).map((item) => {
+          const variant = item.variant ? ` · ${t(`variant.${item.variant}`)}` : "";
+          const quantity = Number(item.quantity || 0);
+          const unitPrice = Number(item.unit_price || 0);
+          return `<li><span>${escapeHtml(`${quantity} × ${item.item_name}${variant}`)}</span><strong>${formatEuro(quantity * unitPrice)}</strong></li>`;
+        }).join("")}
+      </ul>
+      <div class="customer-history-total"><span>${escapeHtml(t("history.total"))}</span><strong>${formatEuro(order.total_price)}</strong></div>
+    </article>
+  `).join("");
+}
+
+async function loadCustomerOrderHistory({ reset = false } = {}) {
+  if (!currentCustomerProfile || customerOrderHistoryLoading) return;
+  if (reset) {
+    customerOrderHistory = [];
+    customerOrderHistoryHasMore = false;
+  }
+
+  customerOrderHistoryLoading = true;
+  customerOrderHistoryMessage.textContent = "";
+  customerOrderHistoryMessage.classList.remove("error");
+  renderCustomerOrderHistory();
+
+  const start = customerOrderHistory.length;
+  const { data, error } = await window.elimSupabase
+    .from("orders")
+    .select("id, order_number, created_at, total_price, status, order_items(item_name, category, variant, quantity, unit_price)")
+    .eq("customer_user_id", currentCustomerProfile.user_id)
+    .order("created_at", { ascending: false })
+    .range(start, start + ORDER_HISTORY_BATCH_SIZE);
+
+  customerOrderHistoryLoading = false;
+  if (error) {
+    console.error("Could not load customer order history:", error);
+    customerOrderHistoryMessage.textContent = t("history.loadError");
+    customerOrderHistoryMessage.classList.add("error");
+    renderCustomerOrderHistory();
+    return;
+  }
+
+  const rows = data || [];
+  customerOrderHistoryHasMore = rows.length > ORDER_HISTORY_BATCH_SIZE;
+  customerOrderHistory.push(...rows.slice(0, ORDER_HISTORY_BATCH_SIZE));
+  renderCustomerOrderHistory();
+}
+
+async function openCustomerOrderHistory() {
+  if (!currentCustomerProfile) return;
+  customerOrderHistoryOverlay.hidden = false;
+  await loadCustomerOrderHistory({ reset: true });
+}
+
+function closeCustomerOrderHistory() {
+  customerOrderHistoryOverlay.hidden = true;
+}
+
 function showAuthGate({ loading = false } = {}) {
   customerAppShell.hidden = true;
   customerAuthOverlay.hidden = false;
@@ -370,6 +490,8 @@ async function loadCustomerAccount(session) {
     await stopWatchingCustomerOrders();
     currentCustomerProfile = null;
     currentCustomerBalance = 0;
+    customerOrderHistory = [];
+    customerOrderHistoryOverlay.hidden = true;
     renderCustomerAccount();
     showAuthGate();
     return false;
@@ -539,6 +661,8 @@ async function signOutCustomer() {
   await window.ELIM_MENU_STORE?.stopRealtime();
   cart.clear();
   lastConfirmation = null;
+  customerOrderHistory = [];
+  customerOrderHistoryOverlay.hidden = true;
   confirmationScreen.hidden = true;
   orderReadyOverlay.hidden = true;
   customerName.value = "";
@@ -904,6 +1028,7 @@ async function submitOrder() {
     newBalance: Number(order.balance)
   };
   currentCustomerBalance = Number(order.balance);
+  customerOrderHistory = [];
   renderCustomerAccount();
   if (currentCustomerProfile && order.id) {
     watchCustomerOrder({ id: order.id, order_number: order.order_number });
@@ -966,6 +1091,9 @@ customerSignInForm.addEventListener("submit", signInCustomer);
 customerSignUpForm.addEventListener("submit", signUpCustomer);
 customerResendConfirmation.addEventListener("click", resendCustomerConfirmation);
 customerSignOut.addEventListener("click", signOutCustomer);
+customerOrderHistoryButton.addEventListener("click", openCustomerOrderHistory);
+customerOrderHistoryClose.addEventListener("click", closeCustomerOrderHistory);
+customerOrderHistoryMore.addEventListener("click", () => loadCustomerOrderHistory());
 notificationToggle.addEventListener("click", toggleOrderNotifications);
 confirmationNotificationEnable.addEventListener("click", enableOrderNotifications);
 orderReadyClose.addEventListener("click", () => {
@@ -973,6 +1101,7 @@ orderReadyClose.addEventListener("click", () => {
 });
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && !orderReadyOverlay.hidden) orderReadyOverlay.hidden = true;
+  if (event.key === "Escape" && !customerOrderHistoryOverlay.hidden) closeCustomerOrderHistory();
 });
 newOrder.addEventListener("click", () => {
   confirmationScreen.hidden = true;
@@ -986,13 +1115,14 @@ document.addEventListener("elim:languagechange", () => {
   if (!orderSummary.hidden) renderSummary();
   renderConfirmation();
   renderCustomerAccount();
+  if (!customerOrderHistoryOverlay.hidden) renderCustomerOrderHistory();
   customerAuthMessage.textContent = authMessage.key ? t(authMessage.key) : "";
   notificationMessage.textContent = notificationMessageState.key ? t(notificationMessageState.key) : "";
   renderNotificationControls();
   if (!orderReadyOverlay.hidden && lastReadyOrderNumber) {
     orderReadyNumber.textContent = t("ready.order", { number: lastReadyOrderNumber });
   }
-  if (currentPushSubscription) savePushSubscription(currentPushSubscription);
+  if (currentPushSubscription && Notification.permission === "granted") savePushSubscription(currentPushSubscription);
 
   currentMessage = preservedMessage;
   refreshMessage();
@@ -1005,7 +1135,7 @@ if ("serviceWorker" in navigator) {
     showOrderReady({ id: payload.orderId, order_number: payload.orderNumber });
   });
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js?v=20261117");
+    navigator.serviceWorker.register("service-worker.js?v=20261123");
   });
 }
 
